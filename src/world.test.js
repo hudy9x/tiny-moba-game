@@ -1,4 +1,37 @@
-import test from 'node:test';import assert from 'node:assert/strict';import {createWorld,START,SIZE} from './world.js';
-test('world is deterministic and start is walkable',()=>{const a=createWorld();assert.equal(a.tiles.length,SIZE*SIZE);assert.deepEqual(a.tiles,createWorld().tiles);assert.ok(a.canWalk(START.x,START.z))});
-test('water, trees, and world edges reject movement',()=>{const w=createWorld();assert.ok(w.tiles.some(t=>t.water));assert.ok(w.tiles.some(t=>t.tree));for(const t of w.tiles)assert.equal(w.canWalk(t.x,t.z),!t.water&&!t.tree);assert.equal(w.canWalk(-1,0),false);assert.equal(w.canWalk(SIZE,0),false)});
-test('spawn has a connected area to explore',()=>{const w=createWorld(),seen=new Set(),q=[START];while(q.length){const t=q.pop(),key=`${t.x},${t.z}`;if(seen.has(key)||!w.canWalk(t.x,t.z))continue;seen.add(key);for(const [dx,dz]of [[1,0],[-1,0],[0,1],[0,-1]])q.push({x:t.x+dx,z:t.z+dz})}assert.ok(seen.size>700)});
+import test from "node:test";
+import assert from "node:assert/strict";
+import { createWorld, START, SIZE } from "./world.js";
+test("world is deterministic and start is walkable", () => {
+  const a = createWorld();
+  assert.equal(a.tiles.length, SIZE * SIZE);
+  assert.deepEqual(a.tiles, createWorld().tiles);
+  assert.ok(a.canWalk(START.x, START.z));
+});
+test("water, trees, and world edges reject movement", () => {
+  const w = createWorld();
+  assert.ok(w.tiles.some((t) => t.water));
+  assert.ok(w.tiles.some((t) => t.tree));
+  for (const t of w.tiles)
+    assert.equal(w.canWalk(t.x, t.z), !t.water && !t.tree);
+  assert.equal(w.canWalk(-1, 0), false);
+  assert.equal(w.canWalk(SIZE, 0), false);
+});
+test("spawn has a connected area to explore", () => {
+  const w = createWorld(),
+    seen = new Set(),
+    q = [START];
+  while (q.length) {
+    const t = q.pop(),
+      key = `${t.x},${t.z}`;
+    if (seen.has(key) || !w.canWalk(t.x, t.z)) continue;
+    seen.add(key);
+    for (const [dx, dz] of [
+      [1, 0],
+      [-1, 0],
+      [0, 1],
+      [0, -1],
+    ])
+      q.push({ x: t.x + dx, z: t.z + dz });
+  }
+  assert.ok(seen.size > 700);
+});

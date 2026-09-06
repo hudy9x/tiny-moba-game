@@ -1,13 +1,156 @@
 <!doctype html>
-<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#f5f6ef"><title>Little World · A place to wander</title></head>
-<body><div id="app">
-<header><a class="brand" href="/" aria-label="Little World home"><span class="brand-mark">▧</span> little world<span class="brand-dot">.</span></a><div class="world-title"><span class="live-dot"></span> THE GREENWOOD <span class="divider">/</span> <span>FREE ROAM</span></div><button id="help" class="round" aria-label="Open controls">?</button></header>
-<main id="world" aria-label="Interactive isometric world"><div id="loading">Growing your little world<span>Planting a few more trees…</span></div></main>
-<section class="intro"><div class="eyebrow">A SMALL WORLD. A LITTLE WONDER.</div><h1>Take the scenic route.</h1><p>No rush. No destination. Just a place to wander.</p></section>
-<aside class="map-panel"><div class="panel-heading">THE GREENWOOD <span>01</span></div><canvas id="minimap" width="160" height="160" aria-label="World map showing your location"></canvas><div class="map-caption"><span class="live-dot"></span> <span id="coords">00, 00</span><span>Meadow</span></div></aside>
-<div class="location"><span class="location-pin">⌖</span><div><strong>Somewhere in the green</strong><span id="explored">A little adventure starts here</span></div></div>
-<div class="toolbar"><button id="sound" aria-label="Enable ambient sound" title="Ambient sound">♫</button><button id="reset" aria-label="Return to starting tile" title="Return to start">↺</button><button id="fullscreen" aria-label="Toggle fullscreen" title="Fullscreen">⛶</button></div>
-<footer><div class="character-select"><div class="avatar-icon coral"><i></i></div><div><span class="small-label">YOUR EXPLORER</span><button id="character">Pip <span>⌄</span></button></div><div id="character-menu" hidden><button data-avatar="pip">Pip <span>The curious one</span></button><button data-avatar="sprout">Sprout <span>A little nature lover</span></button></div></div><div class="movement"><div class="keys"><kbd>W</kbd><div><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></div></div><span>or</span><div class="keys"><kbd>↑</kbd><div><kbd>←</kbd><kbd>↓</kbd><kbd>→</kbd></div></div><div class="movement-copy"><strong>A little step goes a long way.</strong><span>Use your keys to explore</span></div></div><div class="world-status"><span class="live-dot"></span> A world of your own</div></footer>
-<div class="touch-controls" aria-label="Movement controls"><button data-dir="up" aria-label="Move up">↑</button><button data-dir="left" aria-label="Move left">←</button><button data-dir="down" aria-label="Move down">↓</button><button data-dir="right" aria-label="Move right">→</button></div>
-<dialog id="help-dialog"><button class="close" aria-label="Close help">×</button><span class="eyebrow">WELCOME TO LITTLE WORLD</span><h2>Make yourself at home.</h2><p>Use <b>WASD</b> or the <b>arrow keys</b> to take a step. Hold a key to keep wandering.</p><p>Stay on the grass: trees and water will gently stop you. The view stays fixed as you explore.</p><p>Choose Pip or Sprout at the bottom left. Use ↺ to find your way back.</p><button class="primary">Let’s wander</button></dialog>
-<div id="toast" role="status"></div></div><script type="module" src="/src/main.js"></script></body></html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="theme-color" content="#f5f6ef" />
+    <title>Little World · A place to wander</title>
+  </head>
+  <body>
+    <div id="app">
+      <header>
+        <a class="brand" href="/" aria-label="Little World home"
+          ><span class="brand-mark">▧</span> little world<span class="brand-dot"
+            >.</span
+          ></a
+        >
+        <div class="world-title">
+          <span class="live-dot"></span> THE GREENWOOD
+          <span class="divider">/</span> <span>GEM GRAB</span>
+        </div>
+        <button id="help" class="round" aria-label="Open controls">?</button>
+      </header>
+      <main id="world" aria-label="Interactive isometric world">
+        <div id="loading">
+          Growing your little world<span>Planting a few more trees…</span>
+        </div>
+      </main>
+      <section class="intro">
+        <div class="eyebrow">A LITTLE FRIENDLY COMPETITION.</div>
+        <h1>Finders, keepers.</h1>
+        <p>Gather gems. Watch your back. Hold on for the win.</p>
+      </section>
+      <aside class="map-panel">
+        <div class="panel-heading">THE GREENWOOD <span>01</span></div>
+        <canvas
+          id="minimap"
+          width="160"
+          height="160"
+          aria-label="World map showing your location"
+        ></canvas>
+        <div class="map-caption">
+          <span class="live-dot"></span> <span id="coords">00, 00</span
+          ><span>Meadow</span>
+        </div>
+      </aside>
+      <div class="location">
+        <span class="location-pin">⌖</span>
+        <div>
+          <strong><span id="team-name">JOINING MATCH</span></strong
+          ><span id="explored">A little adventure starts here</span>
+        </div>
+      </div>
+      <div class="toolbar">
+        <button
+          id="sound"
+          aria-label="Enable ambient sound"
+          title="Ambient sound"
+        >
+          ♫</button
+        ><button
+          id="reset"
+          aria-label="Center camera on player"
+          title="Center camera"
+        >
+          ↺</button
+        ><button
+          id="fullscreen"
+          aria-label="Toggle fullscreen"
+          title="Fullscreen"
+        >
+          ⛶
+        </button>
+      </div>
+      <footer>
+        <div class="character-select">
+          <div class="avatar-icon coral"><i></i></div>
+          <div>
+            <span class="small-label">YOUR EXPLORER</span
+            ><button id="character">Pip <span>⌄</span></button>
+          </div>
+          <div id="character-menu" hidden>
+            <button data-avatar="pip">Pip <span>The curious one</span></button
+            ><button data-avatar="sprout">
+              Sprout <span>A little nature lover</span>
+            </button>
+          </div>
+        </div>
+        <div class="combat-bar" aria-label="Combat skills">
+          <button data-skill="basic" disabled>
+            <kbd>1</kbd><span>Pulse<span class="cooldown">Ready</span></span
+            ><small>CLICK</small>
+          </button>
+          <button data-skill="dash" disabled>
+            <kbd>2</kbd><span>Dash<span class="cooldown">Ready</span></span
+            ><small>SPACE</small>
+          </button>
+          <button data-skill="ultimate" disabled>
+            <kbd>3</kbd><span>Bloom<span class="cooldown">Ready</span></span
+            ><small>Q / E</small>
+          </button>
+        </div>
+        <div class="health-panel">
+          <span>HEALTH <b id="health-value">100 / 100</b></span
+          ><progress
+            id="player-health"
+            max="100"
+            value="100"
+            aria-label="Your health"
+          ></progress>
+        </div>
+      </footer>
+      <section class="scoreboard" aria-label="Team gem scores">
+        <span class="fern">FERN <b id="fern-score">0</b></span
+        ><span class="score-goal">◆ <span id="gem-goal">10</span></span
+        ><span class="coral-team"><b id="coral-score">0</b> CORAL</span>
+      </section>
+      <div id="match-banner" role="status" hidden></div>
+      <div id="connection-status" role="status">Connecting…</div>
+      <div class="touch-controls" aria-label="Movement controls">
+        <button data-dir="up" aria-label="Move up">↑</button
+        ><button data-dir="left" aria-label="Move left">←</button
+        ><button data-dir="down" aria-label="Move down">↓</button
+        ><button data-dir="right" aria-label="Move right">→</button>
+      </div>
+      <dialog id="help-dialog">
+        <button class="close" aria-label="Close help">×</button
+        ><span class="eyebrow">WELCOME TO LITTLE WORLD</span>
+        <h2>A gem of a skirmish.</h2>
+        <p>
+          Use <b>WASD</b> or the <b>arrow keys</b> to take a step. Hold a key to
+          keep wandering.
+        </p>
+        <p>
+          Stay on the grass: trees and water will gently stop you. The view
+          stays fixed as you explore.
+        </p>
+        <p>
+          Aim with your mouse. <b>Click / 1</b> fires Pulse.
+          <b>Space / 2</b> dashes along your last movement direction.
+          <b>Q / E / 3</b> casts Bloom at your cursor.
+        </p>
+        <p>
+          Collect gems at the center mine. Hold <b id="help-gem-goal">10</b> as
+          a team for <b id="help-countdown">15 seconds</b> to win. Falling in
+          combat drops all your gems. Solo rooms include a practice dummy.
+        </p>
+        <p>
+          Invite friends by sharing this page’s room URL on your local network.
+        </p>
+        <button class="primary">Let’s wander</button>
+      </dialog>
+      <div id="toast" role="status"></div>
+    </div>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>

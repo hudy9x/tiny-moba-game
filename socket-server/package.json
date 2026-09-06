@@ -1,0 +1,13 @@
+{
+  "name": "little-world-socket-server",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "node --watch index.js",
+    "test": "node --test match.test.js"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  }
+}

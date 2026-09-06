@@ -1,0 +1,385 @@
+import { gameConfig as defaults } from "../src/gameConfig.js";
+import { createWorld } from "../src/world.js";
+
+const distance = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
+const validPoint = (p) =>
+  p &&
+  Number.isFinite(p.x) &&
+  Number.isFinite(p.z) &&
+  Math.abs(p.x) < 10000 &&
+  Math.abs(p.z) < 10000;
+const cardinal = (p) =>
+  validPoint(p) &&
+  ((Math.abs(p.x) === 1 && p.z === 0) ||
+    (Math.abs(p.z) === 1 && p.x === 0) ||
+    (p.x === 0 && p.z === 0));
+
+/** Pure simulation: no sockets, renderer, timers, or wall-clock dependencies. */
+export class Match {
+  constructor(config = defaults) {
+    this.config = config;
+    this.world = createWorld();
+    this.players = new Map();
+    this.gems = [];
+    this.projectiles = [];
+    this.events = [];
+    this.time = 0;
+    this.sequence = 0;
+    this.nextGem = config.match.gemSpawnInterval;
+    this.countdown = null;
+    this.winner = null;
+    this.restartAt = null;
+  }
+
+  addPlayer(id) {
+    if (this.players.has(id)) return this.players.get(id);
+    const humans = [...this.players.values()].filter((p) => !p.bot);
+    if (humans.length >= this.config.match.maxPlayers) return null;
+    const counts = [0, 0];
+    humans.forEach((p) => counts[p.team]++);
+    const team = counts[0] <= counts[1] ? 0 : 1;
+    if (counts[team] >= this.config.match.teamSize) return null;
+    const p = this.makePlayer(id, team);
+    this.players.set(id, p);
+    this.syncDummy();
+    return p;
+  }
+
+  makePlayer(id, team, bot = false) {
+    const c = this.config;
+    const spawn = bot ? c.match.dummy : c.match.spawns[team];
+    const maxHealth = bot ? c.match.dummy.health : c.player.baseHealth;
+    return {
+      id,
+      team,
+      bot,
+      x: spawn.x,
+      z: spawn.z,
+      tile: { x: spawn.x, z: spawn.z },
+      health: maxHealth,
+      maxHealth,
+      gems: 0,
+      skin: bot ? "sprout" : "pip",
+      facing: { x: 0, z: 1 },
+      input: { x: 0, z: 0 },
+      inputAt: -Infinity,
+      cooldowns: { basic: 0, dash: 0, ultimate: 0 },
+      lastCombat: -Infinity,
+      motion: null,
+      respawnAt: null,
+    };
+  }
+
+  removePlayer(id) {
+    const p = this.players.get(id);
+    if (!p) return;
+    this.dropGems(p);
+    this.players.delete(id);
+    this.projectiles = this.projectiles.filter((b) => b.owner !== id);
+    this.syncDummy();
+    this.updateVictory();
+  }
+
+  syncDummy() {
+    const humans = [...this.players.values()].filter((p) => !p.bot);
+    if (humans.length === 1 && !this.players.has("dummy")) {
+      this.players.set(
+        "dummy",
+        this.makePlayer("dummy", 1 - humans[0].team, true),
+      );
+    } else if (humans.length !== 1 && this.players.has("dummy")) {
+      this.players.delete("dummy");
+    }
+  }
+
+  command(id, command) {
+    const p = this.players.get(id);
+    if (!p || p.bot || !command || typeof command !== "object") return;
+    if (command.type === "skin" && ["pip", "sprout"].includes(command.skin)) {
+      p.skin = command.skin;
+      return;
+    }
+    if (p.health <= 0 || this.winner !== null) return;
+    if (command.type === "move" && cardinal(command.direction)) {
+      p.input = { ...command.direction };
+      p.inputAt = this.time;
+      if (p.input.x || p.input.z) {
+        p.facing = { ...p.input };
+        // Begin the first step on receipt, so a short tap cannot vanish between ticks.
+        const end = { x: p.tile.x + p.input.x, z: p.tile.z + p.input.z };
+        if (!p.motion && this.world.canWalk(end.x, end.z)) {
+          this.startMotion(p, end, this.config.player.moveSpeed);
+        }
+      }
+    }
+    if (command.type === "skill") this.cast(p, command.skill, command.target);
+  }
+
+  cast(p, skill, target) {
+    const c = this.config.skills[skill];
+    if (
+      !Object.hasOwn(this.config.skills, skill) ||
+      !c ||
+      this.time < p.cooldowns[skill]
+    )
+      return;
+    if (skill === "dash") {
+      if (p.motion) return; // Finish the current tile before beginning a dash.
+      const end = { ...p.tile };
+      for (let i = 0; i < Math.floor(c.distance); i++) {
+        const next = { x: end.x + p.facing.x, z: end.z + p.facing.z };
+        if (!this.world.canWalk(next.x, next.z)) break;
+        Object.assign(end, next);
+      }
+      if (!distance(end, p)) return;
+      this.startMotion(p, end, c.speed, true);
+    } else {
+      if (!validPoint(target)) return;
+      const length = distance(target, p);
+      if (length < 0.001) return;
+      const direction = {
+        x: (target.x - p.x) / length,
+        z: (target.z - p.z) / length,
+      };
+      if (skill === "basic") {
+        this.projectiles.push({
+          id: ++this.sequence,
+          owner: p.id,
+          team: p.team,
+          x: p.x,
+          z: p.z,
+          dx: direction.x,
+          dz: direction.z,
+          traveled: 0,
+        });
+      } else {
+        const center = {
+          x: p.x + direction.x * Math.min(length, c.range),
+          z: p.z + direction.z * Math.min(length, c.range),
+        };
+        this.events.push({
+          type: "ultimate",
+          ...center,
+          team: p.team,
+          radius: c.radius,
+        });
+        for (const other of this.players.values()) {
+          if (
+            other.team !== p.team &&
+            other.health > 0 &&
+            distance(center, other) <= c.radius
+          ) {
+            this.damage(other, p, c.damage);
+          }
+        }
+      }
+    }
+    p.cooldowns[skill] = this.time + c.cooldown;
+  }
+
+  startMotion(p, end, speed, dash = false) {
+    p.motion = {
+      from: { x: p.x, z: p.z },
+      end,
+      elapsed: 0,
+      duration: distance(p, end) / speed,
+      dash,
+    };
+    p.tile = { ...end };
+  }
+
+  damage(victim, attacker, amount) {
+    const actual = Math.min(victim.health, amount);
+    victim.health -= actual;
+    victim.lastCombat = attacker.lastCombat = this.time;
+    this.events.push({
+      type: "damage",
+      x: victim.x,
+      z: victim.z,
+      amount: actual,
+      id: victim.id,
+    });
+    if (victim.health <= 0) {
+      this.dropGems(victim);
+      victim.motion = null;
+      victim.input = { x: 0, z: 0 };
+      victim.respawnAt = this.time + this.config.match.respawnDelay;
+    }
+  }
+
+  dropGems(p) {
+    if (p.gems)
+      this.gems.push({
+        id: ++this.sequence,
+        x: p.x,
+        z: p.z,
+        value: p.gems,
+        mine: false,
+      });
+    p.gems = 0;
+  }
+
+  step(dt) {
+    this.time += dt;
+    if (this.winner !== null) {
+      if (this.time >= this.restartAt) this.restart();
+      return;
+    }
+    const c = this.config;
+    for (const p of this.players.values()) {
+      if (p.health <= 0) {
+        if (this.time >= p.respawnAt) {
+          const fresh = this.makePlayer(p.id, p.team, p.bot);
+          Object.assign(p, fresh, { skin: p.skin, lastCombat: this.time });
+        }
+        continue;
+      }
+      if (this.time - p.lastCombat >= c.player.regenerationDelay) {
+        p.health = Math.min(
+          p.maxHealth,
+          p.health + c.player.regenerationPerSecond * dt,
+        );
+      }
+      if (this.time - p.inputAt > c.network.inputTimeout)
+        p.input = { x: 0, z: 0 };
+      if (!p.motion && (p.input.x || p.input.z)) {
+        const end = { x: p.tile.x + p.input.x, z: p.tile.z + p.input.z };
+        if (this.world.canWalk(end.x, end.z))
+          this.startMotion(p, end, c.player.moveSpeed);
+      }
+      if (p.motion) {
+        const m = p.motion;
+        m.elapsed += dt;
+        const t = Math.min(1, m.elapsed / m.duration);
+        p.x = m.from.x + (m.end.x - m.from.x) * t;
+        p.z = m.from.z + (m.end.z - m.from.z) * t;
+        if (t === 1) p.motion = null;
+      }
+    }
+    this.updateProjectiles(dt);
+    if (this.time >= this.nextGem) {
+      this.nextGem = this.time + c.match.gemSpawnInterval;
+      if (this.gems.filter((g) => g.mine).length < c.match.gemCap) {
+        this.gems.push({
+          id: ++this.sequence,
+          ...c.match.mine,
+          value: 1,
+          mine: true,
+        });
+      }
+    }
+    this.gems = this.gems.filter((gem) => {
+      const eligible = [...this.players.values()]
+        .filter(
+          (p) =>
+            !p.bot && p.health > 0 && distance(p, gem) <= c.match.pickupRadius,
+        )
+        .sort((a, b) => distance(a, gem) - distance(b, gem));
+      if (!eligible.length) return true;
+      eligible[0].gems += gem.value;
+      return false;
+    });
+    this.updateVictory();
+  }
+
+  updateProjectiles(dt) {
+    const c = this.config.skills.basic;
+    this.projectiles = this.projectiles.filter((b) => {
+      // Substeps prevent tunneling through a player or tree between server ticks.
+      const travel = Math.min(c.projectileSpeed * dt, c.range - b.traveled);
+      const substeps = Math.max(1, Math.ceil(travel / 0.15));
+      for (let i = 0; i < substeps; i++) {
+        b.x += (b.dx * travel) / substeps;
+        b.z += (b.dz * travel) / substeps;
+        b.traveled += travel / substeps;
+        const tile = this.world.lookup.get(
+          `${Math.round(b.x)},${Math.round(b.z)}`,
+        );
+        if (!tile || tile.tree) return false;
+        for (const p of this.players.values()) {
+          if (
+            p.team !== b.team &&
+            p.health > 0 &&
+            distance(b, p) <= this.config.player.hitRadius
+          ) {
+            const owner = this.players.get(b.owner);
+            if (owner) this.damage(p, owner, c.damage);
+            return false;
+          }
+        }
+      }
+      return b.traveled < c.range;
+    });
+  }
+
+  totals() {
+    const totals = [0, 0];
+    for (const p of this.players.values()) if (!p.bot) totals[p.team] += p.gems;
+    return totals;
+  }
+
+  updateVictory() {
+    if (this.winner !== null) return;
+    const totals = this.totals();
+    const threshold = this.config.match.winningGemCount;
+    // Only one qualifying team can count down; simultaneous qualification is contested.
+    const qualifying = [0, 1].filter((team) => totals[team] >= threshold);
+    if (qualifying.length !== 1) {
+      this.countdown = null;
+      return;
+    }
+    const team = qualifying[0];
+    if (this.countdown?.team !== team) {
+      this.countdown = {
+        team,
+        endsAt: this.time + this.config.match.victoryCountdown,
+      };
+    }
+    if (this.time >= this.countdown.endsAt) {
+      this.winner = team;
+      this.restartAt = this.time + this.config.match.restartDelay;
+      this.projectiles = [];
+    }
+  }
+
+  restart() {
+    for (const p of this.players.values()) {
+      Object.assign(p, this.makePlayer(p.id, p.team, p.bot), { skin: p.skin });
+    }
+    this.gems = [];
+    this.projectiles = [];
+    this.countdown = null;
+    this.winner = null;
+    this.restartAt = null;
+    this.nextGem = this.time + this.config.match.gemSpawnInterval;
+    this.events.push({ type: "restart" });
+  }
+
+  snapshot() {
+    return {
+      time: this.time,
+      totals: this.totals(),
+      countdown: this.countdown,
+      winner: this.winner,
+      restartAt: this.restartAt,
+      players: [...this.players.values()].map((p) => ({
+        id: p.id,
+        team: p.team,
+        bot: p.bot,
+        x: p.x,
+        z: p.z,
+        health: p.health,
+        maxHealth: p.maxHealth,
+        gems: p.gems,
+        skin: p.skin,
+        facing: p.facing,
+        cooldowns: { ...p.cooldowns },
+        respawnAt: p.respawnAt,
+        dashing: !!p.motion?.dash,
+      })),
+      gems: this.gems.map((g) => ({ ...g })),
+      projectiles: this.projectiles.map((b) => ({ ...b })),
+      events: this.events.splice(0),
+    };
+  }
+}
