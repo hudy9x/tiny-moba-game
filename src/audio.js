@@ -5,6 +5,7 @@ export class GameAudio {
   constructor(config = gameConfig.audio) {
     this.config = config;
     this.voices = new Set();
+    this.buffers = new Map();
   }
   async toggle() {
     if (!this.context) {
@@ -30,6 +31,19 @@ export class GameAudio {
       this.ambient.connect(filter).connect(gain).connect(this.master);
       this.ambient.start();
       await this.context.resume();
+      const context = this.context;
+      for (const [skill, url] of Object.entries(this.config.files || {})) {
+        fetch(url)
+          .then((response) => {
+            if (!response.ok) throw new Error("Missing sound");
+            return response.arrayBuffer();
+          })
+          .then((data) => context.decodeAudioData(data))
+          .then((buffer) => {
+            if (this.context === context) this.buffers.set(skill, buffer);
+          })
+          .catch(() => {});
+      }
     } else if (this.context.state === "running") await this.context.suspend();
     else await this.context.resume();
     return this.context.state === "running";
@@ -53,6 +67,22 @@ export class GameAudio {
     if (!attenuation) return;
     const ctx = this.context,
       now = ctx.currentTime;
+    const custom = this.buffers.get(skill);
+    if (custom) {
+      const source = ctx.createBufferSource(),
+        gain = ctx.createGain();
+      source.buffer = custom;
+      gain.gain.value = c.volume * attenuation;
+      source.connect(gain).connect(this.master);
+      this.voices.add(source);
+      source.onended = () => {
+        source.disconnect();
+        gain.disconnect();
+        this.voices.delete(source);
+      };
+      source.start();
+      return;
+    }
     const source =
       skill === "dash" ? ctx.createBufferSource() : ctx.createOscillator();
     if (skill === "dash") source.buffer = this.noise;
@@ -92,6 +122,7 @@ export class GameAudio {
     this.ambient?.stop();
     this.context?.close();
     this.context = null;
+    this.buffers.clear();
   }
 }
 export const gameAudio = new GameAudio();

@@ -37,7 +37,16 @@ export class Player {
       this.group.add(m);
       return m;
     };
-    add(0.67, 0.67, 0.55, sprout ? "#f2f0db" : "#f2684a", 0, 0.6, 0, 0.09);
+    add(
+      0.67,
+      0.67,
+      0.55,
+      this.costume?.color || (sprout ? "#f2f0db" : "#f2684a"),
+      0,
+      0.6,
+      0,
+      0.09,
+    );
     add(
       0.49,
       0.33,
@@ -48,33 +57,64 @@ export class Player {
       0.285,
       0.04,
     );
-    add(0.046, 0.062, 0.025, "#303a32", -0.135, 0.65, 0.31, 0.01);
-    add(0.046, 0.062, 0.025, "#303a32", 0.135, 0.65, 0.31, 0.01);
+    add(
+      0.046,
+      this.costume?.eye === "sleepy" ? 0.018 : 0.062,
+      0.025,
+      this.costume?.eye === "bright" ? "#377ace" : "#303a32",
+      -0.135,
+      0.65,
+      0.31,
+      0.01,
+    );
+    add(
+      0.046,
+      ["sleepy", "wink"].includes(this.costume?.eye) ? 0.018 : 0.062,
+      0.025,
+      this.costume?.eye === "bright" ? "#377ace" : "#303a32",
+      0.135,
+      0.65,
+      0.31,
+      0.01,
+    );
+    if (["glasses", "sunglasses"].includes(this.costume?.eye)) {
+      for(const x of [-0.135,0.135]) {
+        if(this.costume.eye === "sunglasses") add(0.18,0.13,0.035,"#202f42",x,.65,.34,.025);
+        else {
+          for(const y of [.585,.715])add(.19,.025,.035,"#614936",x,y,.34);
+          for(const dx of [-.085,.085])add(.025,.13,.035,"#614936",x+dx,.65,.34);
+        }
+      }
+      add(.1,.025,.035,"#303a32",0,.66,.34);
+    }
     add(0.035, 0.035, 0.038, "#eabf97", 0, 0.56, 0.31, 0.01);
     add(0.53, 0.14, 0.4, sprout ? "#d3d8c4" : "#39433a", 0, 0.2, 0, 0.035);
-    this.feet = [
-      add(
-        0.16,
-        0.16,
-        0.22,
-        sprout ? "#98bd3d" : "#e8573c",
-        -0.19,
-        0.09,
-        0.1,
-        0.03,
-      ),
-      add(
-        0.16,
-        0.16,
-        0.22,
-        sprout ? "#98bd3d" : "#e8573c",
-        0.19,
-        0.09,
-        0.1,
-        0.03,
-      ),
-    ];
-    if (sprout) {
+    const shoe = {
+      classic: [.16,.16,.22,sprout ? "#98bd3d" : "#e8573c"],
+      sneakers: [.20,.15,.30,"#faf8e9"],
+      boots: [.19,.27,.25,"#6d4937"],
+      slippers: [.24,.12,.29,"#eaaac0"],
+    }[this.costume?.shoes || "classic"];
+    this.feet = [-.19,.19].map(x=>add(shoe[0],shoe[1],shoe[2],shoe[3],x,shoe[1]/2,.1,.035));
+    if(this.costume?.hat === "tophat") {
+      add(.8,.07,.65,"#283244",0,.97,0,.02);add(.48,.38,.42,"#283244",0,1.17,0,.03);
+      add(.49,.07,.43,"#cd6b6b",0,1.04,0);
+    }
+    if(this.costume?.hat === "crown") {
+      add(.65,.12,.5,"#efbf42",0,1,0);
+      for(const x of [-.25,0,.25])add(.1,.18,.1,"#ffe284",x,1.12,.21);
+    }
+    if(this.costume?.hat === "headphones") {
+      add(.75,.07,.16,"#343b54",0,.97,0);
+      for(const x of [-.37,.37])add(.12,.28,.23,"#9771c9",x,.78,0,.035);
+    }
+    if (["cap", "winter"].includes(this.costume?.hat)) {
+      add(0.73, 0.17, 0.64, "#354e74", 0, 0.98, 0, 0.03);
+      if (this.costume.hat === "winter")
+        add(0.18, 0.18, 0.18, "#ffffff", 0, 1.15, 0, 0.04);
+      else add(0.5, 0.05, 0.3, "#354e74", 0, 0.93, 0.36);
+    }
+    if (this.costume?.hat === "sprout" || (!this.costume && sprout)) {
       const a = add(0.13, 0.29, 0.1, "#88b942", -0.08, 1.02, 0, 0.035);
       a.rotation.z = 0.55;
       const b = add(0.13, 0.25, 0.1, "#a0cb4c", 0.08, 1, 0, 0.03);

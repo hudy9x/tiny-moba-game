@@ -160,7 +160,9 @@ export class CombatController {
     document.querySelector("#explored").textContent = state.players.some(
       (p) => p.bot,
     )
-      ? "Solo practice · Try your skills on the dummy"
+      ? new URLSearchParams(location.search).get("mode") === "battle"
+        ? "Bot battle · Keep moving and fight back"
+        : "Training · Try your skills on the dummy"
       : `${state.players.length} explorers · ${config.teams[local.team].name} team`;
     document.querySelector("#player-health").value = local.health;
     document.querySelector("#player-health").max = local.maxHealth;

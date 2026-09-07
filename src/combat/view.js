@@ -91,16 +91,29 @@ export class CombatView {
         actor = { avatar, label, ring, shield, local, data, wasDead: false };
         this.actors.set(data.id, actor);
       }
+      const outfitKey = JSON.stringify(data.costume);
+      if (actor.outfitKey !== outfitKey) {
+        actor.outfitKey = outfitKey;
+        actor.avatar.costume = data.costume;
+        actor.avatar.build();
+      }
+      if (actor.data.health > data.health)
+        actor.hurtUntil = performance.now() + 220;
       if (actor.avatar.skin !== data.skin) actor.avatar.setSkin(data.skin);
       if (actor.wasDead && data.status !== "dead")
         actor.avatar.group.position.set(data.x, 0.05, data.z);
       actor.wasDead = data.status === "dead";
       actor.data = data;
+      for (const mesh of actor.avatar.group.children)
+        if (mesh.material?.emissive)
+          mesh.material.emissive.set(
+            performance.now() < actor.hurtUntil ? "#ff5577" : "#000000",
+          );
       actor.avatar.group.visible = actor.ring.visible = data.status !== "dead";
       actor.label.style.display = data.status !== "dead" ? "" : "none";
       actor.label.style.setProperty("--team", config.teams[data.team].color);
       actor.label.querySelector("span").textContent =
-        `${data.bot ? "DUMMY" : actor.local ? "YOU" : config.teams[data.team].name.toUpperCase()} · ◆ ${data.gems}`;
+        `${data.bot ? "DUMMY" : `${data.name || "Explorer"}${actor.local ? " (YOU)" : ""}`} · ◆ ${data.gems}`;
       const bar = actor.label.querySelector("progress");
       bar.max = data.maxHealth;
       bar.value = data.health;

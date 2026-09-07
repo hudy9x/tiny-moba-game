@@ -18,6 +18,10 @@ export class GameConnection {
     );
     url.searchParams.set("room", this.room);
     url.searchParams.set("map", this.mapId);
+    url.searchParams.set(
+      "mode",
+      new URLSearchParams(location.search).get("mode") || "gem",
+    );
     const socket = (this.socket = new WebSocket(url));
     this.handshakeTimer = setTimeout(() => {
       this.onStatus("Server unavailable · retrying…");
@@ -28,6 +32,12 @@ export class GameConnection {
       if (message.type === "welcome") {
         clearTimeout(this.handshakeTimer);
         this.id = message.id;
+        const outfit = JSON.parse(
+          sessionStorage.getItem("little-world-outfit") || "{}",
+        );
+        this.send({type:"name",name:localStorage.getItem("little-world-name")});
+        this.send({ type: "skin", skin: outfit.skin || "pip" });
+        this.send({ type: "costume", costume: outfit });
         this.onStatus(`Room: ${message.room}`);
       }
       if (message.type === "state") this.onState(message);

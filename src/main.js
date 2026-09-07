@@ -6,6 +6,11 @@ import { setupMapSelector } from "./maps/selector.js";
 import { buildTerrain } from "./terrain.js";
 import { Player } from "./player.js";
 import { CombatController } from "./combat/controller.js";
+const modeName =
+  { battle: "BOT BATTLE", training: "TRAINING", gem: "GEM GRAB" }[
+    new URLSearchParams(location.search).get("mode")
+  ] || "GEM GRAB";
+document.querySelector(".world-title > span:last-child").textContent = modeName;
 const host = document.querySelector("#world");
 const world = createWorld(setupMapSelector());
 const scene = new THREE.Scene();

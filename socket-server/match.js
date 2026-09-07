@@ -1,3 +1,5 @@
+import { updateBot } from "./bot.js";
+import { sanitizeCostume, sanitizeName } from "../src/costume.js";
 import { gameConfig as defaults } from "../src/gameConfig.js";
 import { createWorld } from "../src/world.js";
 import { detonate, updateExplosions, beginKnockbackStep } from "./ultimate.js";
@@ -24,6 +26,7 @@ export class Match {
     random = Math.random,
   ) {
     this.config = config;
+    this.mode = "gem";
     this.world = createWorld(mapId);
     this.random = random;
     this.scatterCandidates = scatterTiles(
@@ -73,6 +76,7 @@ export class Match {
       health: maxHealth,
       maxHealth,
       gems: 0,
+      name: bot ? "Dummy" : "Explorer",
       skin: bot ? "sprout" : "pip",
       facing: { x: 0, z: 1 },
       input: { x: 0, z: 0 },
@@ -110,6 +114,11 @@ export class Match {
   command(id, command) {
     const p = this.players.get(id);
     if (!p || p.bot || !command || typeof command !== "object") return;
+    if(command.type === "name") { p.name=sanitizeName(command.name); return; }
+    if (command.type === "costume") {
+      p.costume = sanitizeCostume(command.costume);
+      return;
+    }
     if (command.type === "skin" && ["pip", "sprout"].includes(command.skin)) {
       p.skin = command.skin;
       return;
@@ -251,12 +260,15 @@ export class Match {
           const fresh = this.makePlayer(p.id, p.team, p.bot);
           Object.assign(p, fresh, {
             skin: p.skin,
+            costume: p.costume,
+            name: p.name,
             lastCombat: this.time,
             invulnerableUntil: this.time + c.player.respawnInvulnerability,
           });
         }
         continue;
       }
+      if (p.bot) updateBot(this, p);
       if (this.time - p.lastCombat >= c.player.regenerationDelay) {
         p.health = Math.min(
           p.maxHealth,
@@ -377,7 +389,11 @@ export class Match {
 
   restart() {
     for (const p of this.players.values()) {
-      Object.assign(p, this.makePlayer(p.id, p.team, p.bot), { skin: p.skin });
+      Object.assign(p, this.makePlayer(p.id, p.team, p.bot), {
+        skin: p.skin,
+        costume: p.costume,
+            name: p.name,
+      });
     }
     this.gems = [];
     this.projectiles = [];
@@ -412,6 +428,8 @@ export class Match {
         facing: p.facing,
         cooldowns: { ...p.cooldowns },
         respawnAt: p.respawnAt,
+        costume: p.costume,
+            name: p.name,
         dashing: !!p.motion?.dash,
         knockedBack: !!p.motion?.knockback,
       })),

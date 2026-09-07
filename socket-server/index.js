@@ -32,7 +32,12 @@ wss.on("connection", (socket, request) => {
     socket.close(1008, "Unknown map");
     return;
   }
-  const roomKey = `${mapId}:${name}`;
+  const mode = params.get("mode") || "gem";
+  if (!["gem", "battle", "training"].includes(mode)) {
+    socket.close(1008, "Unknown mode");
+    return;
+  }
+  const roomKey = `${mode}:${mapId}:${name}`;
   if (!/^[a-zA-Z0-9_-]{1,32}$/.test(name)) {
     socket.close(1008, "Invalid room name");
     return;
@@ -48,6 +53,7 @@ wss.on("connection", (socket, request) => {
       clients: new Map(),
     });
   const room = rooms.get(roomKey);
+  room.match.mode = mode;
   const id = randomUUID();
   if (!room.match.addPlayer(id)) {
     socket.close(1008, "Room full (6 players)");

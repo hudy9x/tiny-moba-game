@@ -67,7 +67,13 @@ export const gameConfig = {
       edge: "#281632",
     },
   },
+  bot: { moveSpeed: 2.4, attackInterval: 1.4 },
   audio: {
+    files: {
+      basic: "/sounds/basic.wav",
+      dash: "/sounds/dash.wav",
+      ultimate: "/sounds/ultimate.wav",
+    },
     masterVolume: 0.45,
     ambientVolume: 0.025,
     maxVoices: 24,

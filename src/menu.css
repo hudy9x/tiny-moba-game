@@ -1,0 +1,155 @@
+[hidden] {
+  display: none !important;
+}
+.game-menu {
+  position: fixed;
+  inset: 0;
+  background: #dce8c9;
+  color: #354333;
+  overflow: auto;
+}
+.menu-scene {
+  position: fixed;
+  inset: 0;
+}
+.menu-scene canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.menu-overlay {
+  position: relative;
+  min-height: 100%;
+  padding: 32px 40px;
+  pointer-events: none;
+}
+.menu-overlay .brand {
+  pointer-events: auto;
+  display: inline-block;
+  padding: 14px 20px;
+  border-radius: 4px;
+  background: #f5f6efbd;
+  backdrop-filter: blur(18px);
+}
+.menu-panel {
+  pointer-events: auto;
+  width: min(420px, 100%);
+  margin: 44px 0 20px;
+  padding: 30px;
+  background: linear-gradient(110deg, #f4f6eadd, #f4f6ea9c);
+  backdrop-filter: blur(18px);
+  border: 1px solid #ffffff60;
+  border-radius: 4px;
+  box-shadow: 0 16px 60px #263d2510;
+}
+.menu-panel h1 {
+  font-size: 42px;
+  letter-spacing: -0.055em;
+  line-height: 1.08;
+  margin: 18px 0 24px;
+}
+.menu-panel p {
+  line-height: 1.6;
+  font-size: 13px;
+}
+.menu-panel .eyebrow {
+  font-size: 9px;
+}
+.mode-list,
+.map-list {
+  display: grid;
+  gap: 8px;
+  margin: 22px 0;
+}
+.map-list {
+  grid-template-columns: 1fr 1fr;
+}
+.choice {
+  padding: 12px 14px;
+  text-align: left;
+  border: 1px solid #8d9f7a40;
+  border-radius: 6px;
+  background: #ffffff45;
+  color: inherit;
+  cursor: pointer;
+  transition:
+    background 0.15s,
+    border-color 0.15s;
+}
+.choice:hover {
+  background: #ffffffa0;
+}
+.choice strong,
+.choice span {
+  display: block;
+}
+.choice strong {
+  font-size: 13px;
+}
+.choice span {
+  font-size: 11px;
+  line-height: 1.5;
+  margin-top: 4px;
+}
+.choice.selected {
+  border-color: #537e60;
+  background: #eef7dfb8;
+}
+.menu-actions {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  margin-top: 26px;
+}
+.menu-actions button {
+  padding: 13px 22px;
+  border: 1px solid #b0bea5;
+  border-radius: 24px;
+  cursor: pointer;
+}
+.menu-actions .primary {
+  margin-left: auto;
+}
+.outfit-fields {
+  display: grid;
+  gap: 18px;
+  width: 100%;
+}
+.menu-panel label {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 12px;
+}
+.menu-panel select,
+.menu-panel input {
+  padding: 9px;
+  border: 1px solid #bdcbb8;
+  border-radius: 6px;
+  background: #ffffffb0;
+  width: 155px;
+}
+.menu-panel input[type="color"] {
+  height: 40px;
+  padding: 4px;
+}
+@media (max-width: 700px) {
+  .menu-overlay {
+    padding: 18px;
+  }
+  .menu-panel {
+    margin-top: 34vh;
+    width: 100%;
+    padding: 22px;
+  }
+  .menu-panel h1 {
+    font-size: 32px;
+  }
+  .menu-scene {
+    height: 65vh;
+  }
+  .menu-overlay .brand {
+    font-size: 22px;
+  }
+}

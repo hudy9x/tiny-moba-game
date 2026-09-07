@@ -160,3 +160,11 @@ Choose **Frostpine Hollow** in the map selector (or `?map=winter`). Its JSON lay
 Click the sound button to enable ambience and skill sounds: a short descending pulse for the basic attack, filtered wind for dash, and a low boom for Ultimate. Sound starts muted and only initializes Web Audio after this click. Confirmed server shots/dashes and newly received explosions drive playback, so rejected casts stay silent and explosion snapshots do not repeat the sound. Nearby casts are louder; voices are capped and disconnected after playback. No audio files or dependencies are required.
 
 Tune `gameConfig.audio` for master/ambient volume, audible distance, voice cap, and each skill's duration, frequencies, and volume. `src/audio.js` owns synthesis and cleanup; `CombatView.sync()` connects combat events to playback; the existing sound button toggles the shared context.
+
+### Start menu, costumes, and moving opponent
+
+The entry point is `src/entry.js`: select a mode, press Start game, customize Pip/Sprout (body color, eyes, hat), choose a map, then enter. The game and network connection are created only after setup. Click the Little World logo to return to the menu. Frostpine Hollow is the winter option. Mode/map/room together isolate multiplayer sessions.
+
+Bot Battle enables a moving, shooting practice opponent; Training keeps the high-health dummy idle. Gem Grab retains the multiplayer gem objective. The practice modes also retain arena gems and combat rules. `socket-server/bot.js` uses breadth-first paths through walkable tiles; `gameConfig.bot` controls its movement speed and attack interval. Hurt actors briefly flash pink alongside existing sparks and damage numbers.
+
+Costumes are validated by `src/costume.js`, synchronized in player snapshots, and rendered by `Player.build()`. Menu choices are remembered for this browser tab. Replace the supplied `public/sounds/basic.wav`, `dash.wav`, and `ultimate.wav` to customize skill audio; reload and enable sound. Missing or invalid audio falls back to synthesis. Paths and volumes live in `gameConfig.audio`.
