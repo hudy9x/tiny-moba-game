@@ -1,5 +1,6 @@
 import { gameConfig as defaults } from "../src/gameConfig.js";
 import { createWorld } from "../src/world.js";
+import { detonate, updateExplosions, beginKnockbackStep } from "./ultimate.js";
 import { scatterTiles, spawnGemBatch } from "./gems.js";
 
 const distance = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
@@ -32,6 +33,7 @@ export class Match {
     this.players = new Map();
     this.gems = [];
     this.projectiles = [];
+    this.explosions = [];
     this.events = [];
     this.time = 0;
     this.sequence = 0;
@@ -78,6 +80,7 @@ export class Match {
       cooldowns: { basic: 0, dash: 0, ultimate: 0 },
       lastCombat: -Infinity,
       motion: null,
+      knockbackPath: [],
       respawnAt: null,
     };
   }
@@ -111,7 +114,13 @@ export class Match {
       p.skin = command.skin;
       return;
     }
-    if (p.status === "dead" || this.winner !== null) return;
+    if (
+      p.status === "dead" ||
+      p.motion?.knockback ||
+      p.knockbackPath.length ||
+      this.winner !== null
+    )
+      return;
     if (command.type === "move" && cardinal(command.direction)) {
       p.input = { ...command.direction };
       p.inputAt = this.time;
@@ -148,10 +157,10 @@ export class Match {
     } else {
       if (!validPoint(target)) return;
       const length = distance(target, p);
-      if (length < 0.001) return;
+      if (length < 0.001 && skill === "basic") return;
       const direction = {
-        x: (target.x - p.x) / length,
-        z: (target.z - p.z) / length,
+        x: (target.x - p.x) / (length || 1),
+        z: (target.z - p.z) / (length || 1),
       };
       if (skill === "basic") {
         this.events.push({
@@ -172,25 +181,7 @@ export class Match {
           traveled: 0,
         });
       } else {
-        const center = {
-          x: p.x + direction.x * Math.min(length, c.range),
-          z: p.z + direction.z * Math.min(length, c.range),
-        };
-        this.events.push({
-          type: "ultimate",
-          ...center,
-          team: p.team,
-          radius: c.radius,
-        });
-        for (const other of this.players.values()) {
-          if (
-            other.team !== p.team &&
-            other.health > 0 &&
-            distance(center, other) <= c.radius
-          ) {
-            this.damage(other, p, c.damage);
-          }
-        }
+        detonate(this, p, target);
       }
     }
     p.cooldowns[skill] = this.time + c.cooldown;
@@ -225,6 +216,7 @@ export class Match {
       victim.status = "dead";
       this.dropGems(victim);
       victim.motion = null;
+      victim.knockbackPath = [];
       victim.input = { x: 0, z: 0 };
       victim.respawnAt = this.time + this.config.match.respawnDelay;
     }
@@ -244,6 +236,7 @@ export class Match {
   }
 
   step(dt) {
+    const previousTime = this.time;
     this.time += dt;
     this.gems = this.gems.filter((g) => this.time < g.expiresAt);
     if (this.winner !== null) {
@@ -271,6 +264,7 @@ export class Match {
       }
       if (this.time - p.inputAt > c.network.inputTimeout)
         p.input = { x: 0, z: 0 };
+      if (!p.motion && p.knockbackPath.length) beginKnockbackStep(this, p);
       if (!p.motion && (p.input.x || p.input.z)) {
         const end = { x: p.tile.x + p.input.x, z: p.tile.z + p.input.z };
         if (this.world.canWalk(end.x, end.z))
@@ -286,6 +280,7 @@ export class Match {
       }
     }
     this.updateProjectiles(dt);
+    updateExplosions(this, previousTime);
     if (this.time >= this.nextGem) {
       this.nextGem = this.time + c.match.gemSpawnInterval;
       spawnGemBatch(this);
@@ -375,6 +370,7 @@ export class Match {
       this.winner = team;
       this.restartAt = this.time + this.config.match.restartDelay;
       this.projectiles = [];
+      this.explosions = [];
     }
   }
 
@@ -384,6 +380,7 @@ export class Match {
     }
     this.gems = [];
     this.projectiles = [];
+    this.explosions = [];
     this.countdown = null;
     this.winner = null;
     this.restartAt = null;
@@ -415,8 +412,10 @@ export class Match {
         cooldowns: { ...p.cooldowns },
         respawnAt: p.respawnAt,
         dashing: !!p.motion?.dash,
+        knockedBack: !!p.motion?.knockback,
       })),
       gems: this.gems.map((g) => ({ ...g })),
+      explosions: this.explosions.map(({ hit, ...blast }) => ({ ...blast })),
       projectiles: this.projectiles.map((b) => ({ ...b })),
       events: this.events.splice(0),
     };

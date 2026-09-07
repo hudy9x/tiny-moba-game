@@ -28,7 +28,16 @@ export const gameConfig = {
   skills: {
     basic: { cooldown: 0.45, projectileSpeed: 13, range: 9, damage: 22 },
     dash: { cooldown: 4, distance: 3, speed: 17 },
-    ultimate: { cooldown: 10, radius: 2.4, range: 7, damage: 65 },
+    ultimate: {
+      cooldown: 10,
+      radius: 2.4,
+      range: 7,
+      damage: 65,
+      animationSpeed: 1,
+      duration: 1.2,
+      knockbackDistance: 2,
+      knockbackSpeed: 9,
+    },
   },
   vfx: {
     muzzleLifetime: 0.12,
@@ -47,7 +56,16 @@ export const gameConfig = {
     damageTextLifetime: 0.8,
     damageTextRise: 1.2,
     damageTextPop: 0.35,
-    ultimateLifetime: 0.6,
+    explosion: {
+      frameSize: 192,
+      frameCount: 36,
+      core: "#fffde5",
+      light: "#ffe674",
+      orange: "#ff9d17",
+      amber: "#e86712",
+      smoke: "#402040",
+      edge: "#281632",
+    },
   },
   network: {
     tickRate: 30,

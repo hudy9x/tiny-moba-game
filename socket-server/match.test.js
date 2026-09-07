@@ -107,6 +107,8 @@ test("ultimate clamps target range and only damages opponents in radius", () => 
     skill: "ultimate",
     target: { x: 25, z: 24 },
   });
+  assert.equal(b.health, 100);
+  advance(m, 0.15);
   assert.equal(b.health, 35);
   assert.equal(a.health, 100);
   m.command(a.id, {
@@ -121,7 +123,7 @@ test("ultimate clamps target range and only damages opponents in radius", () => 
     skill: "ultimate",
     target: { x: 999, z: 24 },
   });
-  assert.equal(m.events.at(-1).x, 30);
+  assert.equal(m.explosions.at(-1).x, 30);
 });
 
 test("dash distance, speed, and cooldown come from configuration", () => {

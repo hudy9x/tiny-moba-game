@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { ExplosionRenderer } from "./explosions.js";
 import { CombatVFX } from "./vfx.js";
 import { Player } from "../player.js";
 import { gameConfig as config } from "../gameConfig.js";
@@ -10,6 +11,7 @@ export class CombatView {
     this.actors = new Map();
     this.gems = new Map();
     this.vfx = new CombatVFX(scene);
+    this.explosions = new ExplosionRenderer(scene);
     this.effects = [];
     this.layer = document.createElement("div");
     this.layer.className = "combat-labels";
@@ -112,6 +114,7 @@ export class CombatView {
       () => this.gemMaterial,
     );
     this.vfx.sync(state.projectiles);
+    this.explosions.sync(state.explosions || [], state.time);
     for (const event of state.events) {
       if (event.type === "shot") this.vfx.shot(event);
       if (event.type === "impact") this.vfx.impact(event);
@@ -125,25 +128,6 @@ export class CombatView {
           ...event,
           age: 0,
           duration: config.vfx.damageTextLifetime,
-        });
-      } else if (event.type === "ultimate") {
-        const mesh = new THREE.Mesh(
-          new THREE.RingGeometry(0.01, event.radius, 40),
-          new THREE.MeshBasicMaterial({
-            color: config.teams[event.team].color,
-            transparent: true,
-            opacity: 0.5,
-            side: THREE.DoubleSide,
-            depthWrite: false,
-          }),
-        );
-        mesh.rotation.x = -Math.PI / 2;
-        mesh.position.set(event.x, 0.065, event.z);
-        this.scene.add(mesh);
-        this.effects.push({
-          mesh,
-          age: 0,
-          duration: config.vfx.ultimateLifetime,
         });
       }
     }
@@ -205,6 +189,7 @@ export class CombatView {
     }
     this.project(this.mineLabel, this.world.mine.x, 1.15, this.world.mine.z);
     this.vfx.update(dt);
+    this.explosions.update();
     this.effects = this.effects.filter((effect) => {
       effect.age += dt;
       if (effect.age >= effect.duration) {
@@ -268,6 +253,7 @@ export class CombatView {
     this.gemGeometry.dispose();
     this.gemMaterial.dispose();
     this.vfx.dispose();
+    this.explosions.dispose();
     this.shieldGeometry.dispose();
     this.shieldMaterial.dispose();
     this.ringGeometry.dispose();

@@ -40,7 +40,7 @@ A production host must proxy WebSocket upgrades at `/ws` to the backend, or set 
 | Move             | WASD / arrows      | Cardinal grid steps, interpolated smoothly; hold to repeat                       |
 | Basic / Pulse    | Left click / 1     | Projectile toward cursor, blocked by trees                                       |
 | Dash             | Space / 2          | Up to three tiles along the last movement direction; stops before water or trees |
-| Ultimate / Bloom | Q / E / 3          | Instant area damage centered at the cursor, clamped to cast range                |
+| Ultimate / Bloom | Q / E / 3          | Six-stage explosion at the targeted tile; damage and knockback during expansion                |
 | Choose avatar    | Bottom-left picker | Appearance synchronized to other players                                         |
 | Center camera    | ↺                  | Re-centers the view without teleporting the player                               |
 
@@ -136,10 +136,19 @@ Client messages:
 { type: 'skin', skin: 'sprout' }
 ```
 
-The server sends `welcome` with player ID/room/map ID, then `state` at 30 Hz with players, projectiles, gems, server time, team totals, countdown/winner state, actor `status`/`invulnerableUntil`, gem `expiresAt`, map ID, and transient shot/impact/damage/ultimate events. The server validates skill cooldowns/range/damage and exclusively resolves pickups/deaths/victory. Broadcast events are consumed once per tick and delivered identically to the room.
+The server sends `welcome` with player ID/room/map ID, then `state` at 30 Hz with players, projectiles, gems, server time, team totals, countdown/winner state, actor `status`/`invulnerableUntil`, gem `expiresAt`, map ID, and active explosions (including their start time and animation parameters), and transient shot/impact/damage events. The server validates skill cooldowns/range/damage and exclusively resolves pickups/deaths/victory. Broadcast events are consumed once per tick and delivered identically to the room.
 
 ## Verification
 
 `npm test` covers deterministic terrain, connected walkable space, invalid moves, tap movement, dash obstacle traversal/speed/cooldowns, projectile collision/range/friendly fire, ultimate targeting, regeneration, mine cap/pickup uniqueness, death/drop/respawn, team totals, cancellation/theft, win/restart, disconnects, malformed inputs, all three map layouts/connectivity/spawns, random gem batch size/scattering/expiry, dead-state input blocking, respawn protection, VFX pooling/cleanup, and real multi-client WebSocket synchronization/map-room isolation/capacity.
 
 This is a local/LAN prototype, with no accounts, persistence, matchmaking service, or latency prediction. Client interpolation smooths snapshots; movement follows server acknowledgement. Shared geometry is reused for gems, projectiles, and team rings; entity meshes and effect resources are cleaned up when removed.
+
+
+### Ultimate explosion integration
+
+`gameConfig.skills.ultimate` exposes `radius`, `damage`, and `animationSpeed` (1 = normal, 2 = twice as fast), plus `duration`, `knockbackDistance`, and `knockbackSpeed`. Colors and atlas resolution live in `gameConfig.vfx.explosion`.
+
+`socket-server/ultimate.js` snaps casts to the nearest tile inside cast range and creates an explosion immediately. `Match.step()` advances its shared timeline: ignition, puffy expansion, peak shockwaves, fragmentation, hollow smoke/embers, and fade. Enemies are checked during 10–42% of the animation, hit only once per explosion, and knocked back along walkable grid tiles. Allies, dead actors, and invulnerable actors are excluded. Water and obstacles stop knockback; the movement loop resumes after displacement completes.
+
+`CombatView.sync()` forwards snapshot explosions to `ExplosionRenderer`; `CombatView.update()` advances their animation each frame. `src/combat/explosionFrames.js` paints procedural cel-shaded frames into a shared atlas, while `src/combat/ultimateTimeline.js` keeps visual phases and server damage timing aligned. No external textures or new dependencies are required. Completed effects dispose their materials, texture views, and shockwave geometry; the final active effect also releases the shared atlas and its canvas pixels.
