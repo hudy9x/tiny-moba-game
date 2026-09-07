@@ -2,6 +2,8 @@
 
 A modular Three.js + Vite grid-world with an authoritative Node.js/WebSocket match server. The only runtime packages are Three.js and `ws`; Vite supplies development and HMR.
 
+![Little World · Gem Grab demo](demo.png)
+
 ## Run locally
 
 Requires Node.js 22.12+ (or a supported newer version).
