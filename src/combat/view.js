@@ -1,3 +1,4 @@
+import { gameAudio } from "../audio.js";
 import * as THREE from "three";
 import { ExplosionRenderer } from "./explosions.js";
 import { CombatVFX } from "./vfx.js";
@@ -13,6 +14,7 @@ export class CombatView {
     this.vfx = new CombatVFX(scene);
     this.explosions = new ExplosionRenderer(scene);
     this.effects = [];
+    this.soundedExplosions = new Set();
     this.layer = document.createElement("div");
     this.layer.className = "combat-labels";
     host.append(this.layer);
@@ -114,9 +116,24 @@ export class CombatView {
       () => this.gemMaterial,
     );
     this.vfx.sync(state.projectiles);
+    const listener = this.localPlayer.group.position;
+    for (const blast of state.explosions || []) {
+      if (
+        !this.soundedExplosions.has(blast.id) &&
+        state.time - blast.startedAt < 0.2
+      )
+        gameAudio.play("ultimate", blast, listener);
+    }
+    this.soundedExplosions = new Set(
+      (state.explosions || []).map((blast) => blast.id),
+    );
     this.explosions.sync(state.explosions || [], state.time);
     for (const event of state.events) {
-      if (event.type === "shot") this.vfx.shot(event);
+      if (event.type === "shot") {
+        this.vfx.shot(event);
+        gameAudio.play("basic", event, listener);
+      }
+      if (event.type === "dash") gameAudio.play("dash", event, listener);
       if (event.type === "impact") this.vfx.impact(event);
       if (event.type === "damage") {
         const label = document.createElement("div");

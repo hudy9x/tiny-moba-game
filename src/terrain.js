@@ -66,6 +66,23 @@ export function buildTerrain(scene, world) {
         s: [0.65, 0.25, 0.67],
         c: palette.foliage[2],
       });
+    } else if (t.tree && world.map.obstacle === "pine") {
+      const h = 1.9 + noise(x, z) * 0.7;
+      trunks.push({ p: [x, 0.45, z], s: [0.2, 0.9, 0.2], c: "#66586b" });
+      for (let j = 0; j < 4; j++) {
+        const width = 1.45 - j * 0.3,
+          y = 0.65 + (j * h) / 4;
+        leaves.push({
+          p: [x, y, z],
+          s: [width, 0.43, width],
+          c: palette.foliage[j % 3],
+        });
+        leaves.push({
+          p: [x, y + 0.25, z],
+          s: [width * 0.86, 0.15, width * 0.86],
+          c: palette.foliage[3],
+        });
+      }
     } else if (t.tree) {
       const h = 1.5 + noise(x + 2, z) * 0.9;
       trunks.push({
@@ -92,7 +109,7 @@ export function buildTerrain(scene, world) {
         details.push({
           p: [x - 0.25 + i * 0.15, 0.1, z + 0.1],
           s: [0.04, 0.19 + noise(x + i, z) * 0.15, 0.04],
-          c: "#759c3d",
+          c: palette.detail || "#759c3d",
         });
     }
   }

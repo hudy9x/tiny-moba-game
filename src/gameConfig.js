@@ -67,6 +67,15 @@ export const gameConfig = {
       edge: "#281632",
     },
   },
+  audio: {
+    masterVolume: 0.45,
+    ambientVolume: 0.025,
+    maxVoices: 24,
+    audibleRadius: 18,
+    basic: { duration: 0.16, frequency: 1150, endFrequency: 260, volume: 0.16 },
+    dash: { duration: 0.28, frequency: 1900, endFrequency: 300, volume: 0.24 },
+    ultimate: { duration: 0.95, frequency: 150, endFrequency: 38, volume: 0.5 },
+  },
   network: {
     tickRate: 30,
     inputInterval: 0.08,

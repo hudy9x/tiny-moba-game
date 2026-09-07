@@ -1,3 +1,4 @@
+import { gameAudio } from "./audio.js";
 import "./style.css";
 import * as THREE from "three";
 import { createWorld } from "./world.js";
@@ -217,44 +218,17 @@ document.addEventListener("pointerdown", (e) => {
     document.querySelector("#character").setAttribute("aria-expanded", "false");
   }
 });
-let audio;
 document.querySelector("#sound").onclick = async () => {
   try {
-    if (!audio) {
-      audio = new AudioContext();
-      const buffer = audio.createBuffer(
-        1,
-        audio.sampleRate * 4,
-        audio.sampleRate,
-      );
-      const data = buffer.getChannelData(0);
-      let last = 0;
-      for (let i = 0; i < data.length; i++) {
-        last = (last + (Math.random() * 2 - 1) * 0.025) / 1.025;
-        data[i] = last * 3;
-      }
-      const source = audio.createBufferSource();
-      source.buffer = buffer;
-      source.loop = true;
-      const filter = audio.createBiquadFilter();
-      filter.type = "lowpass";
-      filter.frequency.value = 700;
-      const gain = audio.createGain();
-      gain.gain.value = 0.17;
-      source.connect(filter).connect(gain).connect(audio.destination);
-      source.start();
-    } else if (audio.state === "running") {
-      await audio.suspend();
-    } else await audio.resume();
-    const active = audio.state === "running";
-    document.querySelector("#sound").classList.toggle("active", active);
-    document
-      .querySelector("#sound")
-      .setAttribute(
-        "aria-label",
-        active ? "Mute ambient sound" : "Enable ambient sound",
-      );
-    toast(active ? "A little riverside ambience." : "Ambient sound off.");
+    const active = await gameAudio.toggle();
+    const button = document.querySelector("#sound");
+    button.classList.toggle("active", active);
+    button.setAttribute(
+      "aria-label",
+      active ? "Mute game sound" : "Enable game sound",
+    );
+    button.setAttribute("aria-pressed", String(active));
+    toast(active ? "Game sounds on." : "Game sounds off.");
   } catch {
     toast("Audio isn’t available in this browser.");
   }
@@ -281,10 +255,18 @@ function animate() {
 renderer.setAnimationLoop(animate);
 document.querySelector("#loading").remove();
 
-window.addEventListener("pagehide", () => combat.dispose(), { once: true });
+window.addEventListener(
+  "pagehide",
+  () => {
+    combat.dispose();
+    gameAudio.dispose();
+  },
+  { once: true },
+);
 if (import.meta.hot)
   import.meta.hot.dispose(() => {
     combat.dispose();
+    gameAudio.dispose();
     renderer.setAnimationLoop(null);
     renderer.dispose();
   });

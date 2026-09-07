@@ -152,3 +152,11 @@ This is a local/LAN prototype, with no accounts, persistence, matchmaking servic
 `socket-server/ultimate.js` snaps casts to the nearest tile inside cast range and creates an explosion immediately. `Match.step()` advances its shared timeline: ignition, puffy expansion, peak shockwaves, fragmentation, hollow smoke/embers, and fade. Enemies are checked during 10–42% of the animation, hit only once per explosion, and knocked back along walkable grid tiles. Allies, dead actors, and invulnerable actors are excluded. Water and obstacles stop knockback; the movement loop resumes after displacement completes.
 
 `CombatView.sync()` forwards snapshot explosions to `ExplosionRenderer`; `CombatView.update()` advances their animation each frame. `src/combat/explosionFrames.js` paints procedural cel-shaded frames into a shared atlas, while `src/combat/ultimateTimeline.js` keeps visual phases and server damage timing aligned. No external textures or new dependencies are required. Completed effects dispose their materials, texture views, and shockwave geometry; the final active effect also releases the shared atlas and its canvas pixels.
+
+### Winter arena and skill audio
+
+Choose **Frostpine Hollow** in the map selector (or `?map=winter`). Its JSON layout includes snowy paths, blue ponds that block movement, snow-capped pine obstacles, and map-specific spawn/mine coordinates. Pine geometry uses the existing terrain instance batches.
+
+Click the sound button to enable ambience and skill sounds: a short descending pulse for the basic attack, filtered wind for dash, and a low boom for Ultimate. Sound starts muted and only initializes Web Audio after this click. Confirmed server shots/dashes and newly received explosions drive playback, so rejected casts stay silent and explosion snapshots do not repeat the sound. Nearby casts are louder; voices are capped and disconnected after playback. No audio files or dependencies are required.
+
+Tune `gameConfig.audio` for master/ambient volume, audible distance, voice cap, and each skill's duration, frequencies, and volume. `src/audio.js` owns synthesis and cleanup; `CombatView.sync()` connects combat events to playback; the existing sound button toggles the shared context.

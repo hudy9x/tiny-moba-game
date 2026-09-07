@@ -154,6 +154,7 @@ export class Match {
       }
       if (!distance(end, p)) return;
       this.startMotion(p, end, c.speed, true);
+      this.events.push({ type: "dash", x: p.x, z: p.z });
     } else {
       if (!validPoint(target)) return;
       const length = distance(target, p);
