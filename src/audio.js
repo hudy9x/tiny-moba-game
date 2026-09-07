@@ -6,8 +6,18 @@ export class GameAudio {
     this.config = config;
     this.voices = new Set();
     this.buffers = new Map();
+    try { this.enabled = globalThis.localStorage?.getItem("game_sound") === "on"; } catch { this.enabled = false; }
   }
   async toggle() {
+    this.enabled = !this.enabled;
+    try { globalThis.localStorage?.setItem("game_sound",this.enabled ? "on" : "off"); } catch {}
+    if(this.enabled) await this.unlock();
+    else if(this.context) await this.context.suspend();
+    return this.enabled;
+  }
+  async unlock() {
+    if(!this.enabled) return;
+
     if (!this.context) {
       this.context = new AudioContext();
       this.master = this.context.createGain();
@@ -44,13 +54,13 @@ export class GameAudio {
           })
           .catch(() => {});
       }
-    } else if (this.context.state === "running") await this.context.suspend();
-    else await this.context.resume();
+    } else if (this.context.state !== "running") await this.context.resume();
     return this.context.state === "running";
   }
   play(skill, point, listener) {
     const c = this.config[skill];
     if (
+      !this.enabled ||
       !c ||
       this.context?.state !== "running" ||
       this.voices.size >= this.config.maxVoices
@@ -87,7 +97,7 @@ export class GameAudio {
       skill === "dash" ? ctx.createBufferSource() : ctx.createOscillator();
     if (skill === "dash") source.buffer = this.noise;
     else {
-      source.type = skill === "ultimate" ? "triangle" : "sine";
+      source.type = skill === "hurt" ? "sawtooth" : skill.startsWith("combo") || skill === "ultimate" ? "triangle" : "sine";
       source.frequency.setValueAtTime(c.frequency, now);
       source.frequency.exponentialRampToValueAtTime(
         c.endFrequency,
@@ -95,10 +105,10 @@ export class GameAudio {
       );
     }
     const filter = ctx.createBiquadFilter();
-    filter.type = "lowpass";
-    filter.frequency.setValueAtTime(c.frequency * 3, now);
+    filter.type = skill === "hurt" ? "bandpass" : "lowpass";
+    filter.frequency.setValueAtTime(c.formant || c.frequency * 3, now);
     filter.frequency.exponentialRampToValueAtTime(
-      c.endFrequency,
+      c.formant ? c.formant * 0.8 : c.endFrequency,
       now + c.duration,
     );
     const gain = ctx.createGain();

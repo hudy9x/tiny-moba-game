@@ -19,10 +19,10 @@
           <label class="map-picker"
             ><select
               id="map-select"
-              aria-label="Select map (reloads game)"
+              aria-label="Current arena"
             ></select
           ></label>
-          <span class="divider">/</span> <span>GEM GRAB</span>
+          <span class="divider">/</span> <span>FFA DEATHMATCH</span>
         </div>
         <button id="help" class="round" aria-label="Open controls">?</button>
       </header>
@@ -33,8 +33,8 @@
       </main>
       <section class="intro">
         <div class="eyebrow">A LITTLE FRIENDLY COMPETITION.</div>
-        <h1>Finders, keepers.</h1>
-        <p>Gather gems. Watch your back. Hold on for the win.</p>
+        <h1>Lasting impressions.</h1>
+        <p>Five minutes. Every player for themselves.</p>
       </section>
       <aside class="map-panel">
         <div class="panel-heading">
@@ -64,7 +64,7 @@
           aria-label="Enable game sound"
           title="Game sound"
         >
-          ♫</button
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M11 5 6 9H3v6h3l5 4V5Z"/><path class="sound-waves" d="M15 8q5 4 0 8m3-11q8 7 0 14"/><path class="sound-slash" d="M2 2 22 22"/></svg></button
         ><button
           id="reset"
           aria-label="Center camera on player"
@@ -95,7 +95,7 @@
         </div>
         <div class="combat-bar" aria-label="Combat skills">
           <button data-skill="basic" disabled>
-            <kbd>1</kbd><span>Pulse<span class="cooldown">Ready</span></span
+            <kbd>1</kbd><span>Piercing Thrust<span class="cooldown">Ready</span></span
             ><small>CLICK</small>
           </button>
           <button data-skill="dash" disabled>
@@ -117,11 +117,10 @@
           ></progress>
         </div>
       </footer>
-      <section class="scoreboard" aria-label="Team gem scores">
-        <span class="fern">FERN <b id="fern-score">0</b></span
-        ><span class="score-goal">◆ <span id="gem-goal">10</span></span
-        ><span class="coral-team"><b id="coral-score">0</b> CORAL</span>
-      </section>
+      <section class="scoreboard" aria-label="Match countdown"><button id="start-game" class="primary" disabled>START GAME</button><strong id="match-timer" hidden>5:00</strong><button id="end-game" hidden>END GAME</button></section>
+      <button id="leaderboard-toggle" aria-controls="leaderboard" aria-expanded="false">🏆 Leaderboard <kbd>ESC</kbd></button>
+      <aside id="leaderboard" class="leaderboard" hidden><b>LEADERBOARD</b><table><thead><tr><th>#</th><th>Player</th><th>Kills</th><th>Deaths</th></tr></thead><tbody id="leaderboard-body"></tbody></table></aside>
+      <section id="mvp-celebration" role="status" hidden><div class="mvp-medal" aria-hidden="true">★</div><p>MOST VALUABLE PLAYER</p><h2 id="mvp-name"></h2><p>Outstanding performance!</p><div id="mvp-stats"></div></section>
       <div id="match-banner" role="status" hidden></div>
       <div id="connection-status" role="status">Connecting…</div>
       <div class="touch-controls" aria-label="Movement controls">
@@ -133,24 +132,23 @@
       <dialog id="help-dialog">
         <button class="close" aria-label="Close help">×</button
         ><span class="eyebrow">WELCOME TO LITTLE WORLD</span>
-        <h2>A gem of a skirmish.</h2>
+        <h2>Five minutes to make your mark.</h2>
         <p>
-          Use <b>WASD</b> or the <b>arrow keys</b> to take a step. Hold a key to
-          keep wandering.
+          Use <b>WASD</b> or the <b>arrow keys</b> to move in screen directions. Combine keys for smooth diagonal movement.
         </p>
         <p>
           Stay on the grass: trees and water will gently stop you. The view
           stays fixed as you explore.
         </p>
         <p>
-          Aim with your mouse. <b>Click / 1</b> fires Pulse.
+          Aim with your mouse. <b>Click / 1</b> fires Piercing Thrust.
           <b>Space / 2</b> dashes along your last movement direction.
           <b>Q / E / 3</b> casts Bloom at your cursor.
         </p>
         <p>
-          Collect gems at the center mine. Hold <b id="help-gem-goal">10</b> as
-          a team for <b id="help-countdown">15 seconds</b> to win. Falling in
-          combat drops all your gems. Solo rooms include a practice dummy.
+          Most kills after five minutes wins; ties use fewer deaths, then player ID.
+          Bloom marks a circle for one second before dealing 45 damage.
+          Regenerate after three seconds out of combat. Respawn after five seconds with a two-second shield.
         </p>
         <p>
           Invite friends by sharing this page’s room URL on your local network.

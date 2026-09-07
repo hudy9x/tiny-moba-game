@@ -2,7 +2,6 @@ import { createServer } from "node:http";
 import { randomUUID } from "node:crypto";
 import { WebSocketServer, WebSocket } from "ws";
 import { Match } from "./match.js";
-import { maps } from "../src/maps/registry.js";
 import { gameConfig } from "../src/gameConfig.js";
 
 const port = Number(process.env.PORT || gameConfig.network.port);
@@ -25,28 +24,10 @@ const wss = new WebSocketServer({
   maxPayload: 2048,
 });
 wss.on("connection", (socket, request) => {
-  const params = new URL(request.url, "http://localhost").searchParams;
-  const name = params.get("room") || "greenwood";
-  const mapId = params.get("map") || gameConfig.maps.defaultId;
-  if (!maps.some((map) => map.id === mapId)) {
-    socket.close(1008, "Unknown map");
-    return;
-  }
-  const mode = params.get("mode") || "gem";
-  if (!["gem", "battle", "training"].includes(mode)) {
-    socket.close(1008, "Unknown mode");
-    return;
-  }
-  const roomKey = `${mode}:${mapId}:${name}`;
-  if (!/^[a-zA-Z0-9_-]{1,32}$/.test(name)) {
-    socket.close(1008, "Invalid room name");
-    return;
-  }
-  // Bound memory for this small prototype server.
-  if (!rooms.has(roomKey) && rooms.size >= 100) {
-    socket.close(1013, "Server full");
-    return;
-  }
+  const name = "arena";
+  const mapId = gameConfig.maps.defaultId;
+  const mode = "ffa";
+  const roomKey = "ffa";
   if (!rooms.has(roomKey))
     rooms.set(roomKey, {
       match: new Match(gameConfig, mapId),
@@ -56,11 +37,11 @@ wss.on("connection", (socket, request) => {
   room.match.mode = mode;
   const id = randomUUID();
   if (!room.match.addPlayer(id)) {
-    socket.close(1008, "Room full (6 players)");
+    socket.close(1008, "Arena full");
     return;
   }
   room.clients.set(id, socket);
-  socket.send(JSON.stringify({ type: "welcome", id, room: name, mapId }));
+  socket.send(JSON.stringify({ type: "welcome", id, room: name, mapId: room.match.world.map.id }));
   let messages = 0;
   let windowStart = Date.now();
   socket.alive = true;
@@ -110,7 +91,7 @@ const heartbeat = setInterval(() => {
   }
 }, 10000);
 http.listen(port, process.env.HOST || "127.0.0.1", () =>
-  console.log(`Gem Grab server: http://127.0.0.1:${port}`),
+  console.log(`FFA server: http://127.0.0.1:${port}`),
 );
 function shutdown() {
   clearInterval(tick);

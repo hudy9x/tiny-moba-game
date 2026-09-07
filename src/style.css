@@ -915,3 +915,56 @@ dialog {
     will-change: auto;
   }
 }
+.scoreboard #match-timer {font-size:30px;font-variant-numeric:tabular-nums;letter-spacing:2px}
+.leaderboard {position:absolute;right:24px;top:100px;z-index:4;background:rgba(250,251,243,.94);border:1px solid #dce2d1;border-radius:14px;padding:16px;max-height:35vh;overflow:auto;min-width:230px;font-size:12px}
+.leaderboard table {width:100%;border-collapse:collapse;margin-top:10px;text-align:left}
+.leaderboard td,.leaderboard th {padding:5px 8px}
+.leaderboard td:nth-child(2) {max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.map-panel {display:none}
+@media(max-width:760px){.leaderboard{top:86px;right:10px;padding:8px;min-width:180px;font-size:10px;max-height:22vh}.intro{display:none}}
+.intro[hidden], #start-game[hidden], #end-game[hidden] {display:none}
+.scoreboard button {border:0;border-radius:8px;padding:10px 12px;font-size:10px;font-weight:800;cursor:pointer;white-space:nowrap}
+#start-game {background:#315c43;color:#fff}
+#end-game {background:#ffe3eb;color:#c72a55}
+.scoreboard button:disabled {opacity:.5;cursor:default}
+.actor-health {display:flex;align-items:center;gap:5px;margin-top:3px}
+.actor-label .actor-health progress {width:64px;margin:0;flex:1}
+.hp-number {font-size:9px;font-variant-numeric:tabular-nums;color:#fff;text-shadow:0 1px 3px #152c20;white-space:nowrap}
+.combat-bar button.cooling-down {opacity:1;border-color:#ff9ec4;background:#fff2f8}
+.combat-bar button.cooling-down:after {background:#ff62ad25}
+.combat-bar button.cooling-down .cooldown {color:#ed287f;font-weight:800;text-shadow:0 0 8px #ff8fc3;font-size:11px}
+#sound .sound-waves {display:none}
+#sound.active .sound-waves {display:block}
+#sound.active .sound-slash {display:none}
+#sound svg {display:block}
+
+.match-running #world:after {display:none}
+#match-timer[hidden], .leaderboard[hidden], #mvp-celebration[hidden] {display:none}
+.scoreboard {justify-content:center;align-items:center;text-align:center}
+#leaderboard-toggle {position:absolute;right:24px;top:100px;z-index:5;border:1px solid #d5decb;border-radius:10px;padding:12px 16px;background:#f8faf0ee;color:#29452f;font-weight:750;cursor:pointer}
+#leaderboard-toggle kbd {margin-left:8px;font-size:9px;opacity:.6}
+.leaderboard {top:150px}
+.podium {font-weight:750}
+.podium-1 {background:#fff1bd;color:#806018}
+.podium-2 {background:#e9eff7;color:#495b75}
+.podium-3 {background:#f8e3d4;color:#8c4c2c}
+#mvp-celebration {position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);z-index:8;width:min(480px,85vw);padding:32px;text-align:center;border:2px solid #f4d67b;border-radius:24px;background:#fff9eaf5;box-shadow:0 15px 100px #73561440;pointer-events:none}
+#mvp-celebration h2 {font-size:36px;margin:8px 0;overflow-wrap:anywhere;color:#6d4d12}
+#mvp-celebration p {font-weight:750;letter-spacing:2px;font-size:12px;color:#9b762e}
+.mvp-medal {font-size:54px;color:#eebc3c;text-shadow:0 0 22px #ffe7a4}
+#mvp-stats {font-size:12px;color:#776437;line-height:1.8}
+@media(max-width:760px){#leaderboard-toggle{top:86px;right:10px;font-size:10px;padding:10px}#leaderboard-toggle kbd{display:none}.leaderboard{top:130px}.scoreboard{gap:10px;padding:10px;left:50%}}
+.arena-selector {position:absolute;bottom:120px;left:50%;transform:translateX(-50%);z-index:4;padding:12px 16px;background:#f8faf0ed;border:1px solid #d5decb;border-radius:16px;width:min(620px,90vw)}
+.arena-selector[hidden] {display:none}
+.arena-selector>p {font-size:10px;letter-spacing:2px;font-weight:750;margin:0 0 10px;color:#527047}
+.arena-cards {display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+.arena-cards button {padding:5px;border:2px solid transparent;border-radius:9px;background:#edf1e2;cursor:pointer;color:#354b2c;min-width:0}
+.arena-cards button[aria-pressed=true] {border-color:#568941;background:#e0edcb;box-shadow:0 0 0 2px #fff}
+.arena-cards canvas {display:block;width:100%;height:90px;object-fit:cover;image-rendering:pixelated;border-radius:5px}
+.arena-cards strong {display:block;font-size:10px;margin:7px 0 3px}
+.actor-label {width:140px;text-align:left}
+.actor-heading {display:flex;align-items:center;justify-content:space-between;gap:8px;padding:4px 5px;border-radius:4px;background:#f9fce6ee}
+.actor-label .actor-heading span {padding:0;background:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.actor-heading .hp-number {font-size:8px;color:#243d2c;text-shadow:none;flex-shrink:0}
+.actor-label>progress {width:100%;height:5px;margin-top:3px}
+@media(max-width:760px){.arena-selector{bottom:145px;padding:8px}.arena-cards{gap:5px}.arena-cards canvas{height:55px}.arena-cards strong{font-size:8px}.actor-label{width:120px}}

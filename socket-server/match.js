@@ -1,9 +1,10 @@
-import { updateBot } from "./bot.js";
+import { maps } from "../src/maps/registry.js";
+import { selectMvp } from "../src/mvp.js";
 import { sanitizeCostume, sanitizeName } from "../src/costume.js";
 import { gameConfig as defaults } from "../src/gameConfig.js";
 import { createWorld } from "../src/world.js";
-import { detonate, updateExplosions, beginKnockbackStep } from "./ultimate.js";
-import { scatterTiles, spawnGemBatch } from "./gems.js";
+import { detonate, updateExplosions } from "./ultimate.js";
+import { scatterTiles } from "./gems.js";
 
 const distance = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
 const validPoint = (p) =>
@@ -12,12 +13,6 @@ const validPoint = (p) =>
   Number.isFinite(p.z) &&
   Math.abs(p.x) < 10000 &&
   Math.abs(p.z) < 10000;
-const cardinal = (p) =>
-  validPoint(p) &&
-  ((Math.abs(p.x) === 1 && p.z === 0) ||
-    (Math.abs(p.z) === 1 && p.x === 0) ||
-    (p.x === 0 && p.z === 0));
-
 /** Pure simulation: no sockets, renderer, timers, or wall-clock dependencies. */
 export class Match {
   constructor(
@@ -26,7 +21,7 @@ export class Match {
     random = Math.random,
   ) {
     this.config = config;
-    this.mode = "gem";
+    this.mode = "ffa";
     this.world = createWorld(mapId);
     this.random = random;
     this.scatterCandidates = scatterTiles(
@@ -39,6 +34,8 @@ export class Match {
     this.explosions = [];
     this.events = [];
     this.time = 0;
+    this.phase = "waiting";
+    this.endsAt = null;
     this.sequence = 0;
     this.nextGem = config.match.gemSpawnInterval;
     this.countdown = null;
@@ -50,19 +47,19 @@ export class Match {
     if (this.players.has(id)) return this.players.get(id);
     const humans = [...this.players.values()].filter((p) => !p.bot);
     if (humans.length >= this.config.match.maxPlayers) return null;
-    const counts = [0, 0];
-    humans.forEach((p) => counts[p.team]++);
-    const team = counts[0] <= counts[1] ? 0 : 1;
-    if (counts[team] >= this.config.match.teamSize) return null;
-    const p = this.makePlayer(id, team);
+    const p = this.makePlayer(id, 0);
     this.players.set(id, p);
-    this.syncDummy();
     return p;
   }
 
   makePlayer(id, team, bot = false) {
     const c = this.config;
-    const spawn = bot ? this.world.dummy : this.world.spawns[team];
+    const candidates = this.world.spawns.filter(t => this.canOccupy(t.x, t.z));
+    candidates.sort((a, b) => {
+      const clearance = t => Math.min(...[...this.players.values()].filter(p => p.status !== "dead").map(p => distance(t, p)), 100);
+      return clearance(b) - clearance(a);
+    });
+    const spawn = candidates[0] || this.world.spawns[0];
     const maxHealth = bot ? c.match.dummyHealth : c.player.baseHealth;
     return {
       id,
@@ -76,6 +73,7 @@ export class Match {
       health: maxHealth,
       maxHealth,
       gems: 0,
+      kills: 0, deaths: 0, hitStreak: 0, damageDealt: 0,
       name: bot ? "Dummy" : "Explorer",
       skin: bot ? "sprout" : "pip",
       facing: { x: 0, z: 1 },
@@ -99,21 +97,60 @@ export class Match {
     this.updateVictory();
   }
 
-  syncDummy() {
-    const humans = [...this.players.values()].filter((p) => !p.bot);
-    if (humans.length === 1 && !this.players.has("dummy")) {
-      this.players.set(
-        "dummy",
-        this.makePlayer("dummy", 1 - humans[0].team, true),
-      );
-    } else if (humans.length !== 1 && this.players.has("dummy")) {
-      this.players.delete("dummy");
+  syncDummy() {}
+
+  canOccupy(x, z) {
+    const r = this.config.player.hitRadius;
+    for (let tz = Math.round(z-r); tz <= Math.round(z+r); tz++)
+      for (let tx = Math.round(x-r); tx <= Math.round(x+r); tx++) {
+        if (this.world.canWalk(tx, tz)) continue;
+        const dx = x - Math.max(tx-.5, Math.min(x, tx+.5));
+        const dz = z - Math.max(tz-.5, Math.min(z, tz+.5));
+        if (dx*dx + dz*dz < r*r) return false;
+      }
+    return true;
+  }
+
+  moveContinuous(p, dx, dz) {
+    const steps = Math.max(1, Math.ceil(Math.hypot(dx,dz)/this.config.player.collisionStep));
+    for(let i=0;i<steps;i++) {
+      if(this.canOccupy(p.x+dx/steps,p.z)) p.x+=dx/steps;
+      if(this.canOccupy(p.x,p.z+dz/steps)) p.z+=dz/steps;
+    }
+    p.tile = {x:p.x,z:p.z};
+  }
+
+  changeMap(mapId) {
+    if(!maps.some(map=>map.id===mapId) || mapId===this.world.map.id) return;
+    this.world=createWorld(mapId);
+    this.scatterCandidates=scatterTiles(this.world,this.config.match.gemScatterRadius);
+    this.projectiles=[];this.explosions=[];this.events=[];
+    for(const p of this.players.values()) {
+      // Keep match stats, health, death timers and cooldowns; relocate only blocked positions.
+      if(!this.canOccupy(p.x,p.z)) {
+        const spawn=this.makePlayer(p.id,p.team,p.bot);
+        p.x=spawn.x;p.z=spawn.z;
+      }
+      p.tile={x:p.x,z:p.z};p.input={x:0,z:0};p.inputAt=-Infinity;
+      p.motion=null;p.knockbackPath=[];
     }
   }
 
   command(id, command) {
     const p = this.players.get(id);
     if (!p || p.bot || !command || typeof command !== "object") return;
+    if(command.type === "map") { this.changeMap(command.mapId); return; }
+    if(command.type === "start") {
+      if(this.phase !== "running") {
+        const mapId=command.mapId || this.world.map.id;
+        if(!maps.some(map=>map.id===mapId)) return;
+        this.world=createWorld(mapId);
+        this.scatterCandidates=scatterTiles(this.world,this.config.match.gemScatterRadius);
+        this.restart();
+      }
+      return;
+    }
+    if(command.type === "end") { if(this.phase === "running") this.finish("manual"); return; }
     if(command.type === "name") { p.name=sanitizeName(command.name); return; }
     if (command.type === "costume") {
       p.costume = sanitizeCostume(command.costume);
@@ -126,26 +163,21 @@ export class Match {
     if (
       p.status === "dead" ||
       p.motion?.knockback ||
-      p.knockbackPath.length ||
-      this.winner !== null
+      p.knockbackPath.length
     )
       return;
-    if (command.type === "move" && cardinal(command.direction)) {
-      p.input = { ...command.direction };
+    if (command.type === "move" && validPoint(command.direction)) {
+      const {x,z} = command.direction;
+      const length = Math.hypot(x,z) || 1;
+      p.input = {x:x/length,z:z/length};
       p.inputAt = this.time;
-      if (p.input.x || p.input.z) {
-        p.facing = { ...p.input };
-        // Begin the first step on receipt, so a short tap cannot vanish between ticks.
-        const end = { x: p.tile.x + p.input.x, z: p.tile.z + p.input.z };
-        if (!p.motion && this.world.canWalk(end.x, end.z)) {
-          this.startMotion(p, end, this.config.player.moveSpeed);
-        }
-      }
+      if (x || z) p.facing = {...p.input};
     }
-    if (command.type === "skill") this.cast(p, command.skill, command.target);
+    if (command.type === "skill" && this.phase === "running") this.cast(p, command.skill, command.target);
   }
 
   cast(p, skill, target) {
+    if(this.phase !== "running") return;
     const c = this.config.skills[skill];
     if (
       !Object.hasOwn(this.config.skills, skill) ||
@@ -154,15 +186,7 @@ export class Match {
     )
       return;
     if (skill === "dash") {
-      if (p.motion) return; // Finish the current tile before beginning a dash.
-      const end = { ...p.tile };
-      for (let i = 0; i < Math.floor(c.distance); i++) {
-        const next = { x: end.x + p.facing.x, z: end.z + p.facing.z };
-        if (!this.world.canWalk(next.x, next.z)) break;
-        Object.assign(end, next);
-      }
-      if (!distance(end, p)) return;
-      this.startMotion(p, end, c.speed, true);
+      p.motion = {dash:true, remaining:c.distance};
       this.events.push({ type: "dash", x: p.x, z: p.z });
     } else {
       if (!validPoint(target)) return;
@@ -189,6 +213,7 @@ export class Match {
           dx: direction.x,
           dz: direction.z,
           traveled: 0,
+          hit: [],
         });
       } else {
         detonate(this, p, target);
@@ -209,11 +234,14 @@ export class Match {
   }
 
   damage(victim, attacker, amount, point = victim) {
-    if (victim.status === "dead" || this.time < victim.invulnerableUntil)
+    if (this.phase !== "running" || victim.status === "dead" || this.time < victim.invulnerableUntil)
       return;
 
     const actual = Math.min(victim.health, amount);
+    if (actual <= 0) return;
     victim.health -= actual;
+    if(attacker.id !== victim.id) attacker.damageDealt += actual;
+    if(attacker.id !== victim.id && attacker.status !== "dead") attacker.hitStreak++;
     victim.lastCombat = attacker.lastCombat = this.time;
     this.events.push({
       type: "damage",
@@ -221,9 +249,14 @@ export class Match {
       z: point.z,
       amount: actual,
       id: victim.id,
+      attacker: attacker.id,
+      hitStreak: attacker.hitStreak,
     });
     if (victim.health <= 0) {
       victim.status = "dead";
+      victim.deaths++;
+      victim.hitStreak = 0;
+      if (attacker.id !== victim.id) attacker.kills++;
       this.dropGems(victim);
       victim.motion = null;
       victim.knockbackPath = [];
@@ -232,33 +265,20 @@ export class Match {
     }
   }
 
-  dropGems(p) {
-    if (p.gems)
-      this.gems.push({
-        id: ++this.sequence,
-        x: Math.round(p.x),
-        z: Math.round(p.z),
-        expiresAt: this.time + this.config.match.gemDespawnTime,
-        value: p.gems,
-        mine: false,
-      });
-    p.gems = 0;
-  }
+  dropGems(p) { p.gems = 0; }
 
   step(dt) {
     const previousTime = this.time;
     this.time += dt;
+    this.updateVictory();
     this.gems = this.gems.filter((g) => this.time < g.expiresAt);
-    if (this.winner !== null) {
-      if (this.time >= this.restartAt) this.restart();
-      return;
-    }
     const c = this.config;
     for (const p of this.players.values()) {
       if (p.status === "dead") {
         if (this.time >= p.respawnAt) {
           const fresh = this.makePlayer(p.id, p.team, p.bot);
           Object.assign(p, fresh, {
+            kills: p.kills, deaths: p.deaths, damageDealt: p.damageDealt,
             skin: p.skin,
             costume: p.costume,
             name: p.name,
@@ -268,7 +288,6 @@ export class Match {
         }
         continue;
       }
-      if (p.bot) updateBot(this, p);
       if (this.time - p.lastCombat >= c.player.regenerationDelay) {
         p.health = Math.min(
           p.maxHealth,
@@ -277,38 +296,19 @@ export class Match {
       }
       if (this.time - p.inputAt > c.network.inputTimeout)
         p.input = { x: 0, z: 0 };
-      if (!p.motion && p.knockbackPath.length) beginKnockbackStep(this, p);
-      if (!p.motion && (p.input.x || p.input.z)) {
-        const end = { x: p.tile.x + p.input.x, z: p.tile.z + p.input.z };
-        if (this.world.canWalk(end.x, end.z))
-          this.startMotion(p, end, c.player.moveSpeed);
-      }
-      if (p.motion) {
-        const m = p.motion;
-        m.elapsed += dt;
-        const t = Math.min(1, m.elapsed / m.duration);
-        p.x = m.from.x + (m.end.x - m.from.x) * t;
-        p.z = m.from.z + (m.end.z - m.from.z) * t;
-        if (t === 1) p.motion = null;
+      if (p.motion?.dash) {
+        const travel = Math.min(p.motion.remaining, c.skills.dash.speed*dt);
+        this.moveContinuous(p,p.facing.x*travel,p.facing.z*travel);
+        p.motion.remaining -= travel;
+        if (p.motion.remaining <= 0) p.motion=null;
+      } else {
+        this.moveContinuous(p,p.input.x*c.player.moveSpeed*dt,p.input.z*c.player.moveSpeed*dt);
       }
     }
-    this.updateProjectiles(dt);
-    updateExplosions(this, previousTime);
-    if (this.time >= this.nextGem) {
-      this.nextGem = this.time + c.match.gemSpawnInterval;
-      spawnGemBatch(this);
+    if(this.phase === "running") {
+      this.updateProjectiles(dt);
+      updateExplosions(this, previousTime);
     }
-    this.gems = this.gems.filter((gem) => {
-      const eligible = [...this.players.values()]
-        .filter(
-          (p) =>
-            !p.bot && p.health > 0 && distance(p, gem) <= c.match.pickupRadius,
-        )
-        .sort((a, b) => distance(a, gem) - distance(b, gem));
-      if (!eligible.length) return true;
-      eligible[0].gems += gem.value;
-      return false;
-    });
     this.updateVictory();
   }
 
@@ -317,7 +317,7 @@ export class Match {
     this.projectiles = this.projectiles.filter((b) => {
       // Substeps prevent tunneling through a player or tree between server ticks.
       const travel = Math.min(c.projectileSpeed * dt, c.range - b.traveled);
-      const substeps = Math.max(1, Math.ceil(travel / 0.15));
+      const substeps = Math.max(1, Math.ceil(travel / c.collisionStep));
       for (let i = 0; i < substeps; i++) {
         b.x += (b.dx * travel) / substeps;
         b.z += (b.dz * travel) / substeps;
@@ -336,7 +336,7 @@ export class Match {
         }
         for (const p of this.players.values()) {
           if (
-            p.team !== b.team &&
+            p.id !== b.owner && !b.hit?.includes(p.id) &&
             p.health > 0 &&
             distance(b, p) <= this.config.player.hitRadius
           ) {
@@ -348,7 +348,7 @@ export class Match {
               kind: this.time < p.invulnerableUntil ? "shield" : "entity",
             });
             if (owner) this.damage(p, owner, c.damage, b);
-            return false;
+            (b.hit ||= []).push(p.id);
           }
         }
       }
@@ -363,31 +363,31 @@ export class Match {
   }
 
   updateVictory() {
-    if (this.winner !== null) return;
-    const totals = this.totals();
-    const threshold = this.config.match.winningGemCount;
-    // Only one qualifying team can count down; simultaneous qualification is contested.
-    const qualifying = [0, 1].filter((team) => totals[team] >= threshold);
-    if (qualifying.length !== 1) {
-      this.countdown = null;
-      return;
-    }
-    const team = qualifying[0];
-    if (this.countdown?.team !== team) {
-      this.countdown = {
-        team,
-        endsAt: this.time + this.config.match.victoryCountdown,
-      };
-    }
-    if (this.time >= this.countdown.endsAt) {
-      this.winner = team;
-      this.restartAt = this.time + this.config.match.restartDelay;
-      this.projectiles = [];
-      this.explosions = [];
-    }
+    if (this.phase !== "running" || this.time < this.endsAt) return;
+    this.finish("timeout");
+  }
+
+  finish(reason) {
+    this.phase = "ended";
+    this.mvp = selectMvp(this.players.values(),this.config.match.mvp);
+    this.celebrationEndsAt = this.time + this.config.match.mvp.celebrationDuration;
+    this.endReason = reason;
+    this.remaining = Math.max(0,this.endsAt-this.time);
+    const ranking = [...this.players.values()].sort((a,b)=>b.kills-a.kills || a.deaths-b.deaths || a.id.localeCompare(b.id));
+    this.winner = ranking[0]?.id || "draw";
+    this.winnerName = ranking[0]?.name || "Nobody";
+    this.restartAt = null;
+    this.projectiles = []; this.explosions = [];
+    for(const p of this.players.values()) { p.input={x:0,z:0}; p.motion=null; p.hitStreak=0; }
   }
 
   restart() {
+    this.mvp = null;
+    this.celebrationEndsAt = null;
+    this.phase = "running";
+    this.endReason = null;
+    this.winnerName = null;
+    this.events = [];
     for (const p of this.players.values()) {
       Object.assign(p, this.makePlayer(p.id, p.team, p.bot), {
         skin: p.skin,
@@ -401,12 +401,15 @@ export class Match {
     this.countdown = null;
     this.winner = null;
     this.restartAt = null;
-    this.nextGem = this.time + this.config.match.gemSpawnInterval;
+    this.endsAt = this.time + this.config.match.duration;
     this.events.push({ type: "restart" });
   }
 
   snapshot() {
     return {
+      mvp: this.mvp, celebrationEndsAt: this.celebrationEndsAt,
+      phase: this.phase, endReason: this.endReason, remaining: this.phase === "waiting" ? this.config.match.duration : this.phase === "ended" ? this.remaining : Math.max(0,this.endsAt-this.time),
+      mode: "ffa", endsAt: this.endsAt, winnerName: this.winnerName,
       mapId: this.world.map.id,
       time: this.time,
       totals: this.totals(),
@@ -423,7 +426,7 @@ export class Match {
         invulnerableUntil: p.invulnerableUntil,
         health: p.health,
         maxHealth: p.maxHealth,
-        gems: p.gems,
+        gems: 0, kills: p.kills, deaths: p.deaths, hitStreak: p.hitStreak, damageDealt: p.damageDealt,
         skin: p.skin,
         facing: p.facing,
         cooldowns: { ...p.cooldowns },

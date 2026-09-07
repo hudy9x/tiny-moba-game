@@ -4,6 +4,9 @@ import { GameAudio } from "./audio.js";
 
 test("audio respects mute, distance, voice limits and releases finished voices", async (t) => {
   const original = globalThis.AudioContext;
+  const originalStorage = Object.getOwnPropertyDescriptor(globalThis,"localStorage");
+  let saved = null;
+  Object.defineProperty(globalThis,"localStorage",{configurable:true,value:{getItem:()=>saved,setItem:(key,value)=>{assert.equal(key,"game_sound");saved=value;}}});
   const param = () => ({
     value: 0,
     setValueAtTime() {},
@@ -54,23 +57,30 @@ test("audio respects mute, distance, voice limits and releases finished voices",
   };
   t.after(() => {
     globalThis.AudioContext = original;
+    if(originalStorage) Object.defineProperty(globalThis,"localStorage",originalStorage);
+    else delete globalThis.localStorage;
   });
   const audio = new GameAudio();
+  assert.equal(audio.enabled,false);
   const point = { x: 0, z: 0 };
   audio.play("basic", point, point);
   assert.equal(audio.voices.size, 0);
   assert.equal(await audio.toggle(), true);
-  for (const skill of ["basic", "dash", "ultimate"])
+  assert.equal(saved,"on");
+  const returning = new GameAudio();assert.equal(returning.enabled,true);await returning.unlock();assert.equal(returning.context.state,"running");returning.dispose();
+  for (const skill of ["basic", "dash", "ultimate", "hurt", "combo2", "combo3", "combo4", "combo5"])
     audio.play(skill, point, point);
-  assert.equal(audio.voices.size, 3);
+  assert.equal(audio.voices.size, 8);
   audio.play("basic", point, { x: 100, z: 0 });
-  assert.equal(audio.voices.size, 3);
+  assert.equal(audio.voices.size, 8);
   const voice = [...audio.voices][0];
   voice.onended();
   assert.ok(voice.disconnected);
   for (let i = 0; i < 50; i++) audio.play("basic", point, point);
   assert.equal(audio.voices.size, audio.config.maxVoices);
   assert.equal(await audio.toggle(), false);
+  assert.equal(saved,"off");
+  assert.equal(new GameAudio().enabled,false);
   audio.dispose();
   assert.equal(audio.voices.size, 0);
   assert.equal(audio.context, null);

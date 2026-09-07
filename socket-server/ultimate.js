@@ -27,7 +27,8 @@ export function detonate(match, player, target) {
     damage: c.damage,
     animationSpeed: c.animationSpeed,
     duration: c.duration,
-    startedAt: match.time,
+    startedAt: match.time + c.windup,
+    telegraphAt: match.time,
     hit: new Set(),
   });
 }
@@ -79,34 +80,16 @@ export function beginKnockbackStep(match, player) {
 }
 
 export function updateExplosions(match, previousTime) {
-  const c = match.config.skills.ultimate;
   for (const blast of match.explosions) {
-    const progress = explosionProgress(blast, match.time);
-    const previous = explosionProgress(blast, previousTime);
-    if (progress < stageStarts[1] || previous >= stageStarts[3]) continue;
-    // Handle a tick crossing either edge of the hit window without missing the hit.
-    const radius = expansionRadius(
-      Math.min(progress, stageStarts[3]),
-      blast.radius,
-    );
+    if (match.time < blast.startedAt || blast.detonated) continue;
+    blast.detonated = true;
     const owner = match.players.get(blast.owner);
     if (!owner) continue;
+    match.events.push({type:"detonation", x:blast.x,z:blast.z});
     for (const victim of match.players.values()) {
-      if (
-        victim.team === blast.team ||
-        victim.status === "dead" ||
-        blast.hit.has(victim.id) ||
-        match.time < victim.invulnerableUntil ||
-        Math.hypot(victim.x - blast.x, victim.z - blast.z) > radius
-      )
-        continue;
-      blast.hit.add(victim.id);
-      match.damage(victim, owner, blast.damage);
-      if (victim.status !== "dead" && c.knockbackDistance > 0)
-        knockback(match, victim, blast, owner.facing);
+      if (victim.id === blast.owner || victim.status === "dead" || Math.hypot(victim.x-blast.x,victim.z-blast.z)>blast.radius) continue;
+      match.damage(victim,owner,blast.damage);
     }
   }
-  match.explosions = match.explosions.filter(
-    (b) => explosionProgress(b, match.time) < 1,
-  );
+  match.explosions = match.explosions.filter(b => explosionProgress(b,match.time)<1);
 }

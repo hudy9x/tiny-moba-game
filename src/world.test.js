@@ -70,7 +70,8 @@ for (const map of maps)
     const a = server.addPlayer("a"),
       b = server.addPlayer("b");
     assert.deepEqual([a.x, a.z], [w.spawns[0].x, w.spawns[0].z]);
-    assert.deepEqual([b.x, b.z], [w.spawns[1].x, w.spawns[1].z]);
+    assert.ok(w.spawns.some(s=>s.x===b.x && s.z===b.z));
+    assert.notDeepEqual([a.x,a.z],[b.x,b.z]);
   });
 test("unknown map IDs fail explicitly", () =>
   assert.throws(() => createWorld("unknown"), /Unknown map/));

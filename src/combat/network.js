@@ -1,3 +1,4 @@
+import {loadProfile} from "../profile.js";
 /** Small transport boundary. Gameplay never trusts client-provided health or positions. */
 export class GameConnection {
   constructor(onState, onStatus, mapId) {
@@ -32,10 +33,9 @@ export class GameConnection {
       if (message.type === "welcome") {
         clearTimeout(this.handshakeTimer);
         this.id = message.id;
-        const outfit = JSON.parse(
-          sessionStorage.getItem("little-world-outfit") || "{}",
-        );
-        this.send({type:"name",name:localStorage.getItem("little-world-name")});
+        const profile = loadProfile();
+        const outfit = profile?.outfit || {};
+        this.send({type:"name",name:profile?.nickname});
         this.send({ type: "skin", skin: outfit.skin || "pip" });
         this.send({ type: "costume", costume: outfit });
         this.onStatus(`Room: ${message.room}`);

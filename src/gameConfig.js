@@ -1,7 +1,11 @@
 /** Shared by the browser and authoritative server. Distances are tiles; times are seconds. */
+const baseHealth = 100;
+
 export const gameConfig = {
   maps: { defaultId: "greenwood" },
   match: {
+    duration: 300,
+    mvp: { killWeight: 100, damageWeight: 0.1, deathPenalty: 25, celebrationDuration: 3 },
     winningGemCount: 10,
     victoryCountdown: 15,
     gemSpawnInterval: 4,
@@ -9,7 +13,7 @@ export const gameConfig = {
     pickupRadius: 0.65,
     respawnDelay: 5,
     restartDelay: 8,
-    maxPlayers: 6,
+    maxPlayers: 64,
     teamSize: 3,
     dummyHealth: 1000,
     gemBatchMin: 1,
@@ -18,21 +22,24 @@ export const gameConfig = {
     gemDespawnTime: 5,
   },
   player: {
-    baseHealth: 100,
+    baseHealth,
     respawnInvulnerability: 2,
     moveSpeed: 5.25,
     regenerationDelay: 3,
     regenerationPerSecond: 12,
     hitRadius: 0.38,
+    collisionStep: 0.1,
+    hpSmoothing: 12,
   },
   skills: {
-    basic: { cooldown: 0.45, projectileSpeed: 13, range: 9, damage: 22 },
+    basic: { cooldown: 0.45, projectileSpeed: 13, collisionStep: 0.15, range: 9, damage: 22 },
     dash: { cooldown: 4, distance: 3, speed: 17 },
     ultimate: {
       cooldown: 10,
       radius: 2.4,
       range: 7,
-      damage: 65,
+      damage: baseHealth * 0.45,
+      windup: 1,
       animationSpeed: 1,
       duration: 1.2,
       knockbackDistance: 2,
@@ -74,6 +81,11 @@ export const gameConfig = {
       dash: "/sounds/dash.wav",
       ultimate: "/sounds/ultimate.wav",
     },
+    hurt: {duration:0.32,frequency:190,endFrequency:95,volume:0.38,formant:800},
+    combo2: {duration:0.28,frequency:523,endFrequency:784,volume:0.3},
+    combo3: {duration:0.34,frequency:659,endFrequency:988,volume:0.34},
+    combo4: {duration:0.4,frequency:784,endFrequency:1175,volume:0.38},
+    combo5: {duration:0.5,frequency:1047,endFrequency:1568,volume:0.42},
     masterVolume: 0.45,
     ambientVolume: 0.025,
     maxVoices: 24,

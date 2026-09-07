@@ -1,6 +1,6 @@
 export const eyes = {round:'Round',sleepy:'Sleepy',bright:'Blue',wink:'Wink',glasses:'Glasses',sunglasses:'Sunglasses'};
 export const hats = {none:'None',sprout:'Sprout',cap:'Cap',winter:'Winter beanie',tophat:'Top hat',crown:'Crown',headphones:'Headphones'};
-export const shoes = {classic:'Classic',sneakers:'Sneakers',boots:'Boots',slippers:'Slippers'};
+export const shoes = {none:'Bare feet',classic:'Classic',sneakers:'Sneakers',boots:'Boots',slippers:'Slippers'};
 export function sanitizeName(value) {
   return typeof value === 'string' ? value.replace(/[\u0000-\u001f\u007f<>]/g,'').trim().slice(0,20) || 'Explorer' : 'Explorer';
 }

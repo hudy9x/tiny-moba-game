@@ -90,6 +90,7 @@ export class Player {
     add(0.035, 0.035, 0.038, "#eabf97", 0, 0.56, 0.31, 0.01);
     add(0.53, 0.14, 0.4, sprout ? "#d3d8c4" : "#39433a", 0, 0.2, 0, 0.035);
     const shoe = {
+      none: [.16,.12,.22,"#eabf97"],
       classic: [.16,.16,.22,sprout ? "#98bd3d" : "#e8573c"],
       sneakers: [.20,.15,.30,"#faf8e9"],
       boots: [.19,.27,.25,"#6d4937"],

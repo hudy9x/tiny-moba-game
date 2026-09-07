@@ -1,17 +1,13 @@
+import {ArenaSelector} from "../maps/selector.js";
 import * as THREE from "three";
 import { gameConfig as config } from "../gameConfig.js";
 import { GameConnection } from "./network.js";
 import { CombatView } from "./view.js";
 
 export class CombatController {
-  constructor({ scene, camera, host, world, player, updateMap, dialog }) {
-    Object.assign(this, { camera, host, player, updateMap, dialog, world });
-    document.querySelector("#gem-goal").textContent =
-      config.match.winningGemCount;
-    document.querySelector("#help-gem-goal").textContent =
-      config.match.winningGemCount;
-    document.querySelector("#help-countdown").textContent =
-      `${config.match.victoryCountdown} seconds`;
+  constructor({ scene, camera, host, world, player, updateMap, loadMap, dialog }) {
+    Object.assign(this, { camera, host, player, updateMap, loadMap, dialog, world });
+    this.arenaSelector = new ArenaSelector(mapId=>this.connection.send({type:"map",mapId}));
     this.view = new CombatView(scene, camera, host, world, player);
     this.abort = new AbortController();
     this.aim = { ...world.dummy };
@@ -29,6 +25,16 @@ export class CombatController {
       world.map.id,
     );
     const options = { signal: this.abort.signal };
+    for(const type of ["start","end"]) document.querySelector(`#${type}-game`).addEventListener("click",()=>this.connection.send({type}),options);
+    const toggleLeaderboard = () => {
+      const panel=document.querySelector('#leaderboard');
+      panel.hidden=!panel.hidden;
+      document.querySelector('#leaderboard-toggle').setAttribute('aria-expanded',String(!panel.hidden));
+    };
+    document.querySelector('#leaderboard-toggle').addEventListener('click',toggleLeaderboard,options);
+    window.addEventListener('keydown',e=>{
+      if(e.key === 'Escape' && !e.repeat && !dialog.open) {e.preventDefault();toggleLeaderboard();}
+    },options);
     host.addEventListener("pointermove", (e) => this.setAim(e), options);
     host.addEventListener(
       "pointerdown",
@@ -45,6 +51,7 @@ export class CombatController {
       (e) => {
         if (
           dialog.open ||
+          e.isComposing || e.keyCode === 229 ||
           e.repeat ||
           e.ctrlKey ||
           e.metaKey ||
@@ -127,7 +134,7 @@ export class CombatController {
   }
 
   cast(skill) {
-    if (!this.localPlayerState || this.localPlayerState.status === "dead")
+    if (!this.localPlayerState || this.localPlayerState.status === "dead" || this.state?.phase !== "running")
       return;
     if (skill === "dash") this.pendingDashUntil = performance.now() + 300;
     this.connection.send({ type: "skill", skill, target: this.aim });
@@ -138,13 +145,26 @@ export class CombatController {
   }
 
   receive(state) {
-    if (state.mapId !== this.world.map.id) return;
+    if (state.mapId !== this.world.map.id) {
+      for(const [id,actor] of this.view.actors) this.view.removeActor(id,actor);
+      this.view.explosions.dispose();
+      this.loadMap(state.mapId);
+      this.lastTile="";
+      window.dispatchEvent(new Event('combat-input-reset'));
+    }
+    this.arenaSelector.sync(state);
     const wasDead = this.localPlayerState?.status === "dead";
     const nextLocal = state.players.find((p) => p.id === this.connection.id);
-    if (wasDead !== (nextLocal?.status === "dead")) {
+    if (wasDead !== (nextLocal?.status === "dead") || state.phase !== this.state?.phase) {
       this.pendingDashUntil = 0;
       window.dispatchEvent(new Event("combat-input-reset"));
     }
+    document.querySelector('#app').classList.toggle('match-running',state.phase === 'running');
+    document.querySelector('.intro').hidden = state.phase === 'running';
+    document.querySelector('#start-game').hidden = state.phase === 'running';
+    document.querySelector('#start-game').disabled = !nextLocal;
+    document.querySelector('#end-game').hidden = state.phase !== 'running';
+    document.querySelector('#match-timer').hidden = state.phase !== 'running';
     this.state = state;
     this.receivedAt = performance.now();
     this.view.sync(state, this.connection.id);
@@ -157,23 +177,25 @@ export class CombatController {
       this.lastTile = tile;
       this.updateMap({ x, z });
     }
-    document.querySelector("#explored").textContent = state.players.some(
-      (p) => p.bot,
-    )
-      ? new URLSearchParams(location.search).get("mode") === "battle"
-        ? "Bot battle · Keep moving and fight back"
-        : "Training · Try your skills on the dummy"
-      : `${state.players.length} explorers · ${config.teams[local.team].name} team`;
+    document.querySelector("#explored").textContent = `${state.players.length} ${state.players.length === 1 ? "player" : "players"} · Everyone is a rival`;
+    const board=document.querySelector('#leaderboard-body');
+    board.replaceChildren();
+    [...state.players].sort((a,b)=>b.kills-a.kills || a.deaths-b.deaths || a.id.localeCompare(b.id)).forEach((p,i)=>{
+      const row=document.createElement('tr');
+      if(i<3) row.className=`podium podium-${i+1}`;
+      for(const value of [i<3 ? ["🥇","🥈","🥉"][i] : i+1, p.name+(p.id===local.id?' (YOU)':''),p.kills,p.deaths]) {
+        const cell=document.createElement('td');cell.textContent=value;row.append(cell);
+      }
+      board.append(row);
+    });
     document.querySelector("#player-health").value = local.health;
     document.querySelector("#player-health").max = local.maxHealth;
     document.querySelector("#health-value").textContent =
       `${Math.ceil(local.health)} / ${local.maxHealth}`;
-    document.querySelector("#fern-score").textContent = state.totals[0];
-    document.querySelector("#coral-score").textContent = state.totals[1];
-    document.querySelector("#team-name").textContent =
-      config.teams[local.team].name.toUpperCase();
-    document.querySelector("#team-name").style.color =
-      config.teams[local.team].color;
+    document.querySelector("#team-name").textContent = local.name;
+    document.querySelector("#character").innerHTML = `${local.skin === "sprout" ? "Sprout" : "Pip"} <span>⌄</span>`;
+    document.querySelector(".avatar-icon").classList.toggle("sprout",local.skin === "sprout");
+
   }
 
   update(dt, time, direction) {
@@ -194,6 +216,7 @@ export class CombatController {
     const local = state?.players.find((p) => p.id === this.connection.id);
     if (
       local &&
+      state.phase === "running" &&
       local.status !== "dead" &&
       this.pendingDashUntil > performance.now() &&
       state.time >= local.cooldowns.dash
@@ -210,8 +233,9 @@ export class CombatController {
       button.disabled =
         !local ||
         local.status === "dead" ||
-        state.winner !== null ||
+        state.phase !== "running" ||
         remaining > 0;
+      button.classList.toggle("cooling-down",remaining > 0);
       button.querySelector(".cooldown").textContent =
         remaining > 0 ? `${remaining.toFixed(1)}s` : "Ready";
       button.style.setProperty(
@@ -221,15 +245,19 @@ export class CombatController {
     }
     const banner = document.querySelector("#match-banner");
     let message = "";
-    if (state?.winner !== null && state?.winner !== undefined) {
-      message = `${config.teams[state.winner].name} wins! · New round in ${Math.max(0, Math.ceil(state.restartAt - now))}s`;
-    } else if (local?.status === "dead") {
-      message = `Gems dropped · Respawning in ${Math.max(0, Math.ceil(local.respawnAt - now))}s`;
+    if (local?.status === "dead") {
+      message = `Respawning in ${Math.max(0, Math.ceil(local.respawnAt - now))}s`;
     } else if (local && now < local.invulnerableUntil) {
       message = `Respawn shield · ${Math.ceil(local.invulnerableUntil - now)}s`;
-    } else if (state?.countdown) {
-      message = `${config.teams[state.countdown.team].name} holds ${config.match.winningGemCount}+ gems · ${Math.max(0, Math.ceil(state.countdown.endsAt - now))}s to victory`;
     }
+    const celebration=document.querySelector('#mvp-celebration');
+    celebration.hidden = !(state?.phase === 'ended' && state.mvp && now < state.celebrationEndsAt);
+    if(!celebration.hidden) {
+      document.querySelector('#mvp-name').textContent=state.mvp.name;
+      document.querySelector('#mvp-stats').textContent=`${state.mvp.kills} kills · ${state.mvp.deaths} deaths · ${Math.round(state.mvp.damageDealt)} damage · ${Math.round(state.mvp.score)} MVP points`;
+    }
+    const seconds=state?Math.max(0,Math.ceil(state.phase === "running" ? state.endsAt-now : state.remaining)):config.match.duration;
+    document.querySelector('#match-timer').textContent=`${Math.floor(seconds/60)}:${String(seconds%60).padStart(2,'0')}`;
     banner.textContent = message;
     banner.hidden = !message;
     this.view.update(dt, time);
@@ -237,6 +265,7 @@ export class CombatController {
 
   dispose() {
     this.abort.abort();
+    this.arenaSelector.dispose();
     this.connection.dispose();
     this.view.dispose();
   }

@@ -78,13 +78,21 @@ export class ExplosionRenderer {
         this.scene.add(mesh);
         rings.push(mesh);
       }
-      this.active.set(data.id, { data, sprite, texture, rings, frame: -1 });
+      const telegraph=new THREE.Mesh(new THREE.RingGeometry(0.92,1,64),new THREE.MeshBasicMaterial({color:'#ff62bd',transparent:true,opacity:.8,side:THREE.DoubleSide,depthWrite:false}));
+      telegraph.rotation.x=-Math.PI/2;telegraph.position.set(data.x,.12,data.z);telegraph.scale.setScalar(data.radius);
+      this.scene.add(telegraph);
+      sprite.visible=false;
+      this.active.set(data.id, { data, sprite, texture, rings, telegraph, frame: -1 });
     }
   }
   update() {
     if (!this.atlas) return;
     const now = this.serverTime + (performance.now() - this.receivedAt) / 1000;
     for (const [id, e] of this.active) {
+      const waiting=now<e.data.startedAt;
+      e.telegraph.visible=waiting;
+      e.sprite.visible=!waiting;
+      if(waiting){e.rings.forEach(r=>r.visible=false);continue;}
       const p = explosionProgress(e.data, now);
       if (p >= 1) {
         this.remove(id);
@@ -114,7 +122,8 @@ export class ExplosionRenderer {
   remove(id) {
     const e = this.active.get(id);
     if (!e) return;
-    this.scene.remove(e.sprite);
+    this.scene.remove(e.sprite,e.telegraph);
+    e.telegraph.geometry.dispose();e.telegraph.material.dispose();
     e.texture.dispose();
     e.sprite.material.dispose();
     for (const ring of e.rings) {

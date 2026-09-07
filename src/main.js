@@ -1,3 +1,7 @@
+import {MovementInput} from "./input.js";
+import {loadProfile,saveProfile,defaultOutfit,randomOutfit} from "./profile.js";
+import {gameConfig} from "./gameConfig.js";
+import {screenDirection} from "./movement.js";
 import { gameAudio } from "./audio.js";
 import "./style.css";
 import * as THREE from "three";
@@ -6,10 +10,7 @@ import { setupMapSelector } from "./maps/selector.js";
 import { buildTerrain } from "./terrain.js";
 import { Player } from "./player.js";
 import { CombatController } from "./combat/controller.js";
-const modeName =
-  { battle: "BOT BATTLE", training: "TRAINING", gem: "GEM GRAB" }[
-    new URLSearchParams(location.search).get("mode")
-  ] || "GEM GRAB";
+const modeName = "FFA DEATHMATCH";
 document.querySelector(".world-title > span:last-child").textContent = modeName;
 const host = document.querySelector("#world");
 const world = createWorld(setupMapSelector());
@@ -50,7 +51,22 @@ Object.assign(sun.shadow.camera, {
 });
 sun.shadow.bias = -0.0005;
 sun.shadow.normalBias = 0.025;
-buildTerrain(scene, world);
+let terrain = new THREE.Group();scene.add(terrain);
+buildTerrain(terrain, world);
+function loadMap(mapId) {
+  const geometries=new Set(),materials=new Set();
+  terrain.traverse(object=>{if(object.geometry)geometries.add(object.geometry);if(object.material)materials.add(object.material);object.dispose?.();});
+  geometries.forEach(g=>g.dispose());materials.forEach(m=>m.dispose());scene.remove(terrain);
+  Object.assign(world,createWorld(mapId));
+  terrain=new THREE.Group();scene.add(terrain);buildTerrain(terrain,world);
+  scene.background.set(world.map.palette.background);
+  sun.target.position.set(world.mine.x,0,world.mine.z);
+  document.querySelector('#map-select').value=mapId;
+  document.querySelector('#map-title').textContent=world.map.name.toUpperCase();
+  document.querySelector('#biome-name').textContent=world.map.biome;
+  renderer.domElement.setAttribute('aria-label',`${world.map.name} landscape. Use WASD or arrow keys to move.`);
+  target.set(world.spawns[0].x,0,world.spawns[0].z);
+}
 const map = document.querySelector("#minimap"),
   ctx = map.getContext("2d");
 function updateMap(tile) {
@@ -94,37 +110,9 @@ function resize() {
 }
 window.addEventListener("resize", resize);
 resize();
-const directions = {
-  w: [0, -1],
-  ArrowUp: [0, -1],
-  s: [0, 1],
-  ArrowDown: [0, 1],
-  a: [-1, 0],
-  ArrowLeft: [-1, 0],
-  d: [1, 0],
-  ArrowRight: [1, 0],
-};
-const held = new Set();
-window.addEventListener("combat-input-reset", () => held.clear());
 const dialog = document.querySelector("dialog");
-window.addEventListener("keydown", (e) => {
-  const key = e.key.length === 1 ? e.key.toLowerCase() : e.key;
-  if (
-    directions[key] &&
-    !dialog.open &&
-    !["INPUT", "SELECT", "TEXTAREA"].includes(document.activeElement.tagName)
-  ) {
-    e.preventDefault();
-    held.add(key);
-    combat.move(directions[key]);
-  }
-});
-window.addEventListener("keyup", (e) => {
-  held.delete(e.key.length === 1 ? e.key.toLowerCase() : e.key);
-  combat.move(directions[[...held].at(-1)]);
-});
-window.addEventListener("blur", () => held.clear());
-document.addEventListener("visibilitychange", () => held.clear());
+const movement = new MovementInput(direction=>combat.move(direction),()=>dialog.open || document.activeElement?.isContentEditable || ['INPUT','SELECT','TEXTAREA'].includes(document.activeElement?.tagName));
+const held = movement.held;
 const combat = new CombatController({
   scene,
   camera,
@@ -132,19 +120,21 @@ const combat = new CombatController({
   world,
   player,
   updateMap,
+  loadMap,
   dialog,
 });
+movement.bind(window,document);
 const touch = { up: "w", down: "s", left: "a", right: "d" };
 document.querySelectorAll("[data-dir]").forEach((b) => {
   b.addEventListener("pointerdown", (e) => {
     b.setPointerCapture(e.pointerId);
     held.add(touch[b.dataset.dir]);
-    combat.move(directions[touch[b.dataset.dir]]);
+    combat.move(screenDirection(held));
   });
   for (const event of ["pointerup", "pointercancel", "lostpointercapture"])
     b.addEventListener(event, () => {
       held.delete(touch[b.dataset.dir]);
-      combat.move(directions[[...held].at(-1)]);
+      combat.move(screenDirection(held));
     });
 });
 let toastTimer;
@@ -199,6 +189,8 @@ document.querySelectorAll("[data-avatar]").forEach(
   (b) =>
     (b.onclick = () => {
       const skin = b.dataset.avatar;
+      const profile=loadProfile();
+      if(profile){profile.outfit.skin=skin;saveProfile(profile);}
       combat.setSkin(skin);
       document.querySelector("#character").innerHTML =
         `${skin === "pip" ? "Pip" : "Sprout"} <span>⌄</span>`;
@@ -217,34 +209,46 @@ document.querySelectorAll("[data-avatar]").forEach(
       );
     }),
 );
+for (const [id,label] of [["auto-mix","Auto-Mix"],["reset-outfit","Reset to Default"],["edit-profile","Edit nickname & costume"]]) {
+  const button=document.createElement('button');button.id=id;button.textContent=label;menu.append(button);
+  button.onclick=()=>{
+    if(id==='edit-profile'){location.assign('/?customize=1');return;}
+    const profile=loadProfile() || {nickname:'Explorer'};
+    profile.outfit=id==='auto-mix'?randomOutfit():{...defaultOutfit};
+    saveProfile(profile);
+    combat.setSkin(profile.outfit.skin);
+    combat.connection.send({type:'costume',costume:profile.outfit});
+    menu.hidden=true;
+  };
+}
 document.addEventListener("pointerdown", (e) => {
   if (!e.target.closest(".character-select")) {
     menu.hidden = true;
     document.querySelector("#character").setAttribute("aria-expanded", "false");
   }
 });
-document.querySelector("#sound").onclick = async () => {
-  try {
-    const active = await gameAudio.toggle();
-    const button = document.querySelector("#sound");
-    button.classList.toggle("active", active);
-    button.setAttribute(
-      "aria-label",
-      active ? "Mute game sound" : "Enable game sound",
-    );
-    button.setAttribute("aria-pressed", String(active));
-    toast(active ? "Game sounds on." : "Game sounds off.");
-  } catch {
-    toast("Audio isn’t available in this browser.");
-  }
+function updateSoundButton() {
+  const button=document.querySelector('#sound');
+  button.classList.toggle('active',gameAudio.enabled);
+  button.setAttribute('aria-label',gameAudio.enabled ? 'Mute game sound' : 'Enable game sound');
+  button.setAttribute('aria-pressed',String(gameAudio.enabled));
+  button.title=gameAudio.enabled ? 'Sound on' : 'Sound off';
+}
+updateSoundButton();
+// Browsers require a gesture before restoring an enabled audio context.
+for(const event of ['pointerdown','keydown']) window.addEventListener(event,()=>{
+  if(gameAudio.enabled) gameAudio.unlock().catch(()=>{});
+});
+document.querySelector('#sound').onclick=async()=>{
+  try {await gameAudio.toggle();updateSoundButton();toast(gameAudio.enabled?'Game sounds on.':'Game sounds off.');}
+  catch {updateSoundButton();toast('Audio isn’t available in this browser.');}
 };
 const clock = new THREE.Clock();
 let time = 0;
 function animate() {
   const dt = Math.min(clock.getDelta(), 0.05);
   time += dt;
-  const key = dialog.open ? null : [...held].at(-1);
-  combat.update(dt, time, key ? directions[key] : null);
+  combat.update(dt, time, movement.direction());
   target.lerp(
     new THREE.Vector3(
       player.group.position.x - 1.3,
@@ -263,6 +267,7 @@ document.querySelector("#loading").remove();
 window.addEventListener(
   "pagehide",
   () => {
+    movement.dispose();
     combat.dispose();
     gameAudio.dispose();
   },
@@ -270,6 +275,7 @@ window.addEventListener(
 );
 if (import.meta.hot)
   import.meta.hot.dispose(() => {
+    movement.dispose();
     combat.dispose();
     gameAudio.dispose();
     renderer.setAnimationLoop(null);

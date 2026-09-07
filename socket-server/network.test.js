@@ -22,7 +22,7 @@ function waitFor(socket, predicate, timeout = 4000) {
 }
 
 test(
-  "real WebSocket clients share combat, rooms isolate state, and capacity rejects a seventh",
+  "real WebSocket clients all join one FFA arena regardless of legacy room or map",
   { timeout: 15000 },
   async (t) => {
     const port = 31000 + Math.floor(Math.random() * 10000);
@@ -60,60 +60,32 @@ test(
     };
     const a = await connect("arena");
     let state = await waitFor(a.socket, (s) => s.type === "state");
-    assert.ok(state.players.some((p) => p.bot));
-    const b = await connect("arena");
-    state = await waitFor(
-      a.socket,
-      (s) =>
-        s.type === "state" &&
-        s.players.length === 2 &&
-        !s.players.some((p) => p.bot),
-    );
-    assert.notEqual(state.players[0].team, state.players[1].team);
-    const hitA = waitFor(
-      a.socket,
-      (s) =>
-        s.type === "state" &&
-        s.players.some((p) => p.id === b.id && p.health === 78),
-    );
-    const hitB = waitFor(
-      b.socket,
-      (s) =>
-        s.type === "state" &&
-        s.players.some((p) => p.id === b.id && p.health === 78),
-    );
-    a.socket.send(
-      JSON.stringify({
-        type: "skill",
-        skill: "basic",
-        target: { x: 23, z: 20 },
-      }),
-    );
-    await Promise.all([hitA, hitB]);
-    const isolated = await connect("other-room");
-    const otherState = await waitFor(
-      isolated.socket,
-      (s) => s.type === "state",
-    );
-    assert.equal(otherState.players.length, 2);
-    assert.ok(otherState.players.every((p) => p.health === p.maxHealth));
-    const canyon = await connect("arena", "canyon");
-    const canyonState = await waitFor(canyon.socket, (s) => s.type === "state");
-    assert.equal(canyonState.mapId, "canyon");
-    assert.equal(canyonState.players.length, 2);
-    assert.equal(canyonState.players.find((p) => p.id === canyon.id).x, 18);
-    const greenState = await waitFor(a.socket, (s) => s.type === "state");
-    assert.equal(greenState.mapId, "greenwood");
-    assert.equal(greenState.players.length, 2);
-    for (let i = 0; i < 4; i++) await connect("arena");
-    const extra = new WebSocket(`ws://127.0.0.1:${port}/ws?room=arena`);
-    clients.push(extra);
-    const close = await new Promise((resolve) =>
-      extra.on("close", (code, reason) =>
-        resolve({ code, reason: reason.toString() }),
-      ),
-    );
-    assert.equal(close.code, 1008);
-    assert.match(close.reason, /Room full/);
+    assert.equal(state.players.length,1);
+    const b=await connect('different-room','canyon');
+    state=await waitFor(a.socket,s=>s.type==='state' && s.players.length===2);
+    assert.equal(state.mapId,'greenwood');
+    assert.equal(state.mode,'ffa');
+    assert.equal(state.phase,"waiting");
+    b.socket.send(JSON.stringify({type:"start"}));
+    state=await waitFor(a.socket,s=>s.type==="state" && s.phase==="running");
+    assert.ok(state.endsAt-state.time>295);
+    const bState=await waitFor(b.socket,s=>s.type==='state');
+    assert.deepEqual(bState.players.map(p=>p.id),state.players.map(p=>p.id));
+    a.socket.send(JSON.stringify({type:'name',name:'Arena Alice'}));
+    await waitFor(b.socket,s=>s.type==='state' && s.players.some(p=>p.name==='Arena Alice'));
+    for(let i=0;i<5;i++)await connect('legacy'+i);
+    state=await waitFor(a.socket,s=>s.type==='state' && s.players.length===7);
+    assert.ok(state.players.every(p=>!p.bot));
+    a.socket.send(JSON.stringify({type:"end"}));
+    await waitFor(b.socket,s=>s.type==="state" && s.phase==="ended");
+    b.socket.send(JSON.stringify({type:"start",mapId:"winter"}));
+    const changed=await waitFor(a.socket,s=>s.type==="state" && s.phase==="running" && s.mapId==="winter");
+    assert.ok(changed.players.some(p=>p.id===a.id));
+    assert.ok(changed.players.some(p=>p.id===b.id));
+    a.socket.send(JSON.stringify({type:"map",mapId:"river"}));
+    await waitFor(b.socket,s=>s.type==="state" && s.mapId==="river" && s.phase==="running");
+    const late=await connect("late");
+    const lateState=await waitFor(late.socket,s=>s.type==="state");
+    assert.equal(lateState.mapId,"river");
   },
 );

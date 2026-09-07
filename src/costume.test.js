@@ -12,5 +12,5 @@ test('all costume choices build on the actual character',()=>{
  for(const eye of Object.keys(eyes))for(const hat of Object.keys(hats))for(const shoe of Object.keys(shoes)){
  p.costume=sanitizeCostume({eye,hat,shoes:shoe});p.build();assert.equal(p.feet.length,2);assert.ok(p.group.children.length>6);
  }
- assert.equal(Object.keys(shoes).length,4);
+ assert.equal(Object.keys(shoes).length,5);
 });

@@ -55,10 +55,11 @@ export class CombatView {
       this.mine.add(crystal);
     }
     this.mine.position.set(world.mine.x, 0.02, world.mine.z);
+    this.mine.visible=false;
     scene.add(this.mine);
     this.mineLabel = document.createElement("div");
     this.mineLabel.className = "mine-label";
-    this.mineLabel.textContent = "GEM MINE";
+    this.mineLabel.hidden = true;
     this.layer.append(this.mineLabel);
   }
 
@@ -77,11 +78,11 @@ export class CombatView {
           : new Player(this.scene, this.world, () => {});
         const label = document.createElement("div");
         label.className = "actor-label";
-        label.innerHTML = "<span></span><progress></progress>";
+        label.innerHTML = '<div class="actor-heading"><span></span><b class="hp-number"></b></div><progress></progress>';
         this.layer.append(label);
         const ring = new THREE.Mesh(
           this.ringGeometry,
-          this.teamMaterials[data.team],
+          this.teamMaterials[local ? 0 : 1],
         );
         ring.rotation.x = -Math.PI / 2;
         this.scene.add(ring);
@@ -111,12 +112,13 @@ export class CombatView {
           );
       actor.avatar.group.visible = actor.ring.visible = data.status !== "dead";
       actor.label.style.display = data.status !== "dead" ? "" : "none";
-      actor.label.style.setProperty("--team", config.teams[data.team].color);
+      actor.label.style.setProperty("--team", actor.local ? "#36a66a" : "#ef4055");
       actor.label.querySelector("span").textContent =
-        `${data.bot ? "DUMMY" : `${data.name || "Explorer"}${actor.local ? " (YOU)" : ""}`} · ◆ ${data.gems}`;
+        `${data.name || "Explorer"}${actor.local ? " (YOU)" : ""}`;
       const bar = actor.label.querySelector("progress");
+      actor.label.querySelector(".hp-number").textContent = `${Math.ceil(data.health)} / ${data.maxHealth}`;
       bar.max = data.maxHealth;
-      bar.value = data.health;
+      actor.displayHealth ??= data.health;
       bar.setAttribute(
         "aria-label",
         `${data.bot ? "Dummy" : "Player"} health ${Math.ceil(data.health)}`,
@@ -130,18 +132,9 @@ export class CombatView {
     );
     this.vfx.sync(state.projectiles);
     const listener = this.localPlayer.group.position;
-    for (const blast of state.explosions || []) {
-      if (
-        !this.soundedExplosions.has(blast.id) &&
-        state.time - blast.startedAt < 0.2
-      )
-        gameAudio.play("ultimate", blast, listener);
-    }
-    this.soundedExplosions = new Set(
-      (state.explosions || []).map((blast) => blast.id),
-    );
     this.explosions.sync(state.explosions || [], state.time);
     for (const event of state.events) {
+      if(event.type === "detonation") gameAudio.play("ultimate",event,listener);
       if (event.type === "shot") {
         this.vfx.shot(event);
         gameAudio.play("basic", event, listener);
@@ -149,9 +142,12 @@ export class CombatView {
       if (event.type === "dash") gameAudio.play("dash", event, listener);
       if (event.type === "impact") this.vfx.impact(event);
       if (event.type === "damage") {
+        if(event.id === localId) gameAudio.play("hurt",event,listener);
+        if(event.attacker === localId && event.hitStreak >= 2 && event.hitStreak <= 5) gameAudio.play(`combo${event.hitStreak}`,event);
+
         const label = document.createElement("div");
         label.className = "damage-number";
-        label.textContent = `−${event.amount}`;
+        label.textContent = `−${Math.round(event.amount)}`;
         this.layer.append(label);
         this.effects.push({
           label,
@@ -195,6 +191,8 @@ export class CombatView {
   update(dt, time) {
     for (const actor of this.actors.values()) {
       const { data, avatar, ring, label, shield } = actor;
+      actor.displayHealth += (data.health-actor.displayHealth)*(1-Math.exp(-dt*config.player.hpSmoothing));
+      label.querySelector("progress").value=actor.displayHealth;
       const position = avatar.group.position;
       const moving =
         Math.hypot(data.x - position.x, data.z - position.z) > 0.02;
