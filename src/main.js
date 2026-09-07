@@ -1,13 +1,14 @@
 import "./style.css";
 import * as THREE from "three";
-import { createWorld, SIZE, START } from "./world.js";
+import { createWorld } from "./world.js";
+import { setupMapSelector } from "./maps/selector.js";
 import { buildTerrain } from "./terrain.js";
 import { Player } from "./player.js";
 import { CombatController } from "./combat/controller.js";
 const host = document.querySelector("#world");
-const world = createWorld();
+const world = createWorld(setupMapSelector());
 const scene = new THREE.Scene();
-scene.background = new THREE.Color("#dce8c9");
+scene.background = new THREE.Color(world.map.palette.background);
 const renderer = new THREE.WebGLRenderer({
   antialias: true,
   powerPreference: "high-performance",
@@ -21,15 +22,15 @@ renderer.toneMappingExposure = 1.05;
 host.appendChild(renderer.domElement);
 renderer.domElement.setAttribute(
   "aria-label",
-  "Greenwood landscape. Use WASD or arrow keys to move.",
+  `${world.map.name} landscape. Use WASD or arrow keys to move.`,
 );
 const camera = new THREE.OrthographicCamera();
-const target = new THREE.Vector3(22, 0, 23);
+const target = new THREE.Vector3(world.spawns[0].x, 0, world.spawns[0].z);
 const offset = new THREE.Vector3(25, 30, 25);
 scene.add(new THREE.HemisphereLight(0xffffe5, 0x6d8d64, 1.5));
 const sun = new THREE.DirectionalLight(0xfff5d4, 2.5);
 sun.position.set(-12, 32, -8);
-sun.target.position.set(22, 0, 22);
+sun.target.position.set(world.mine.x, 0, world.mine.z);
 scene.add(sun, sun.target);
 sun.castShadow = true;
 sun.shadow.mapSize.set(2048, 2048);
@@ -48,15 +49,15 @@ const map = document.querySelector("#minimap"),
   ctx = map.getContext("2d");
 function updateMap(tile) {
   ctx.clearRect(0, 0, 160, 160);
-  const s = 160 / SIZE;
+  const s = 160 / world.size;
   for (const t of world.tiles) {
     ctx.fillStyle = t.water
-      ? "#71bbc0"
+      ? world.map.palette.water[0]
       : t.tree
-        ? "#61854e"
+        ? world.map.palette.foliage[0]
         : t.sand
-          ? "#bdc58b"
-          : "#a7bc87";
+          ? world.map.palette.sand
+          : world.map.palette.land[0];
     ctx.fillRect(t.x * s, t.z * s, s + 0.3, s + 0.3);
   }
   ctx.strokeStyle = "#fff";
@@ -70,7 +71,7 @@ function updateMap(tile) {
     `${String(tile.x).padStart(2, "0")}, ${String(tile.z).padStart(2, "0")}`;
 }
 const player = new Player(scene, world, () => {});
-updateMap(START);
+updateMap(world.spawns[0]);
 
 function resize() {
   const w = host.clientWidth,
@@ -98,6 +99,7 @@ const directions = {
   ArrowRight: [1, 0],
 };
 const held = new Set();
+window.addEventListener("combat-input-reset", () => held.clear());
 const dialog = document.querySelector("dialog");
 window.addEventListener("keydown", (e) => {
   const key = e.key.length === 1 ? e.key.toLowerCase() : e.key;

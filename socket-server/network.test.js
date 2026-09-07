@@ -50,8 +50,10 @@ test(
         if (code) reject(new Error(`Server exited ${code}`));
       });
     });
-    const connect = async (room) => {
-      const socket = new WebSocket(`ws://127.0.0.1:${port}/ws?room=${room}`);
+    const connect = async (room, map = "greenwood") => {
+      const socket = new WebSocket(
+        `ws://127.0.0.1:${port}/ws?room=${room}&map=${map}`,
+      );
       clients.push(socket);
       const welcome = await waitFor(socket, (s) => s.type === "welcome");
       return { socket, id: welcome.id };
@@ -95,6 +97,14 @@ test(
     );
     assert.equal(otherState.players.length, 2);
     assert.ok(otherState.players.every((p) => p.health === p.maxHealth));
+    const canyon = await connect("arena", "canyon");
+    const canyonState = await waitFor(canyon.socket, (s) => s.type === "state");
+    assert.equal(canyonState.mapId, "canyon");
+    assert.equal(canyonState.players.length, 2);
+    assert.equal(canyonState.players.find((p) => p.id === canyon.id).x, 18);
+    const greenState = await waitFor(a.socket, (s) => s.type === "state");
+    assert.equal(greenState.mapId, "greenwood");
+    assert.equal(greenState.players.length, 2);
     for (let i = 0; i < 4; i++) await connect("arena");
     const extra = new WebSocket(`ws://127.0.0.1:${port}/ws?room=arena`);
     clients.push(extra);

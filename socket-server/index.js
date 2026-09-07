@@ -2,6 +2,7 @@ import { createServer } from "node:http";
 import { randomUUID } from "node:crypto";
 import { WebSocketServer, WebSocket } from "ws";
 import { Match } from "./match.js";
+import { maps } from "../src/maps/registry.js";
 import { gameConfig } from "../src/gameConfig.js";
 
 const port = Number(process.env.PORT || gameConfig.network.port);
@@ -24,28 +25,36 @@ const wss = new WebSocketServer({
   maxPayload: 2048,
 });
 wss.on("connection", (socket, request) => {
-  const name =
-    new URL(request.url, "http://localhost").searchParams.get("room") ||
-    "greenwood";
+  const params = new URL(request.url, "http://localhost").searchParams;
+  const name = params.get("room") || "greenwood";
+  const mapId = params.get("map") || gameConfig.maps.defaultId;
+  if (!maps.some((map) => map.id === mapId)) {
+    socket.close(1008, "Unknown map");
+    return;
+  }
+  const roomKey = `${mapId}:${name}`;
   if (!/^[a-zA-Z0-9_-]{1,32}$/.test(name)) {
     socket.close(1008, "Invalid room name");
     return;
   }
   // Bound memory for this small prototype server.
-  if (!rooms.has(name) && rooms.size >= 100) {
+  if (!rooms.has(roomKey) && rooms.size >= 100) {
     socket.close(1013, "Server full");
     return;
   }
-  if (!rooms.has(name))
-    rooms.set(name, { match: new Match(), clients: new Map() });
-  const room = rooms.get(name);
+  if (!rooms.has(roomKey))
+    rooms.set(roomKey, {
+      match: new Match(gameConfig, mapId),
+      clients: new Map(),
+    });
+  const room = rooms.get(roomKey);
   const id = randomUUID();
   if (!room.match.addPlayer(id)) {
     socket.close(1008, "Room full (6 players)");
     return;
   }
   room.clients.set(id, socket);
-  socket.send(JSON.stringify({ type: "welcome", id, room: name }));
+  socket.send(JSON.stringify({ type: "welcome", id, room: name, mapId }));
   let messages = 0;
   let windowStart = Date.now();
   socket.alive = true;
@@ -71,7 +80,7 @@ wss.on("connection", (socket, request) => {
   socket.on("close", () => {
     room.clients.delete(id);
     room.match.removePlayer(id);
-    if (!room.clients.size) rooms.delete(name);
+    if (!room.clients.size) rooms.delete(roomKey);
   });
 });
 const tick = setInterval(() => {

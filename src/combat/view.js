@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { CombatVFX } from "./vfx.js";
 import { Player } from "../player.js";
 import { gameConfig as config } from "../gameConfig.js";
 
@@ -8,7 +9,7 @@ export class CombatView {
     Object.assign(this, { scene, camera, host, world, localPlayer });
     this.actors = new Map();
     this.gems = new Map();
-    this.projectiles = new Map();
+    this.vfx = new CombatVFX(scene);
     this.effects = [];
     this.layer = document.createElement("div");
     this.layer.className = "combat-labels";
@@ -20,7 +21,15 @@ export class CombatView {
       emissiveIntensity: 0.5,
       roughness: 0.3,
     });
-    this.bulletGeometry = new THREE.SphereGeometry(0.11, 6, 4);
+    this.shieldGeometry = new THREE.SphereGeometry(0.65, 12, 8);
+    this.shieldMaterial = new THREE.MeshBasicMaterial({
+      color: "#fff5a8",
+      wireframe: true,
+      transparent: true,
+      opacity: 0.3,
+      depthWrite: false,
+      toneMapped: false,
+    });
     this.teamMaterials = config.teams.map(
       (t) => new THREE.MeshBasicMaterial({ color: t.color }),
     );
@@ -41,7 +50,7 @@ export class CombatView {
       crystal.position.set((i - 1) * 0.24, 0.47 + (i === 1 ? 0.12 : 0), 0);
       this.mine.add(crystal);
     }
-    this.mine.position.set(config.match.mine.x, 0.02, config.match.mine.z);
+    this.mine.position.set(world.mine.x, 0.02, world.mine.z);
     scene.add(this.mine);
     this.mineLabel = document.createElement("div");
     this.mineLabel.className = "mine-label";
@@ -73,16 +82,18 @@ export class CombatView {
         ring.rotation.x = -Math.PI / 2;
         this.scene.add(ring);
         avatar.group.position.set(data.x, 0.05, data.z);
-        actor = { avatar, label, ring, local, data, wasDead: false };
+        const shield = new THREE.Mesh(this.shieldGeometry, this.shieldMaterial);
+        this.scene.add(shield);
+        actor = { avatar, label, ring, shield, local, data, wasDead: false };
         this.actors.set(data.id, actor);
       }
       if (actor.avatar.skin !== data.skin) actor.avatar.setSkin(data.skin);
-      if (actor.wasDead && data.health > 0)
+      if (actor.wasDead && data.status !== "dead")
         actor.avatar.group.position.set(data.x, 0.05, data.z);
-      actor.wasDead = data.health <= 0;
+      actor.wasDead = data.status === "dead";
       actor.data = data;
-      actor.avatar.group.visible = actor.ring.visible = data.health > 0;
-      actor.label.style.display = data.health > 0 ? "" : "none";
+      actor.avatar.group.visible = actor.ring.visible = data.status !== "dead";
+      actor.label.style.display = data.status !== "dead" ? "" : "none";
       actor.label.style.setProperty("--team", config.teams[data.team].color);
       actor.label.querySelector("span").textContent =
         `${data.bot ? "DUMMY" : actor.local ? "YOU" : config.teams[data.team].name.toUpperCase()} · ◆ ${data.gems}`;
@@ -100,19 +111,21 @@ export class CombatView {
       this.gemGeometry,
       () => this.gemMaterial,
     );
-    this.syncMeshes(
-      this.projectiles,
-      state.projectiles,
-      this.bulletGeometry,
-      (p) => this.teamMaterials[p.team],
-    );
+    this.vfx.sync(state.projectiles);
     for (const event of state.events) {
+      if (event.type === "shot") this.vfx.shot(event);
+      if (event.type === "impact") this.vfx.impact(event);
       if (event.type === "damage") {
         const label = document.createElement("div");
         label.className = "damage-number";
         label.textContent = `−${event.amount}`;
         this.layer.append(label);
-        this.effects.push({ label, ...event, age: 0, duration: 0.8 });
+        this.effects.push({
+          label,
+          ...event,
+          age: 0,
+          duration: config.vfx.damageTextLifetime,
+        });
       } else if (event.type === "ultimate") {
         const mesh = new THREE.Mesh(
           new THREE.RingGeometry(0.01, event.radius, 40),
@@ -127,7 +140,11 @@ export class CombatView {
         mesh.rotation.x = -Math.PI / 2;
         mesh.position.set(event.x, 0.065, event.z);
         this.scene.add(mesh);
-        this.effects.push({ mesh, age: 0, duration: 0.6 });
+        this.effects.push({
+          mesh,
+          age: 0,
+          duration: config.vfx.ultimateLifetime,
+        });
       }
     }
   }
@@ -163,7 +180,7 @@ export class CombatView {
 
   update(dt, time) {
     for (const actor of this.actors.values()) {
-      const { data, avatar, ring, label } = actor;
+      const { data, avatar, ring, label, shield } = actor;
       const position = avatar.group.position;
       const moving =
         Math.hypot(data.x - position.x, data.z - position.z) > 0.02;
@@ -175,6 +192,10 @@ export class CombatView {
       avatar.group.rotation.y = Math.atan2(data.facing.x, data.facing.z);
       ring.position.set(position.x, 0.03, position.z);
       ring.scale.setScalar(data.dashing ? 1.3 : 1);
+      shield.visible =
+        data.status !== "dead" && this.state.time < data.invulnerableUntil;
+      shield.position.set(position.x, 0.55, position.z);
+      shield.scale.setScalar(1 + Math.sin(time * 8) * 0.05);
       this.project(label, position.x, 1.5, position.z);
     }
     for (const mesh of this.gems.values()) {
@@ -182,12 +203,8 @@ export class CombatView {
       mesh.position.y =
         0.65 + Math.sin(time * 3 + mesh.userData.entity.id) * 0.07;
     }
-    this.project(
-      this.mineLabel,
-      config.match.mine.x,
-      1.15,
-      config.match.mine.z,
-    );
+    this.project(this.mineLabel, this.world.mine.x, 1.15, this.world.mine.z);
+    this.vfx.update(dt);
     this.effects = this.effects.filter((effect) => {
       effect.age += dt;
       if (effect.age >= effect.duration) {
@@ -200,7 +217,19 @@ export class CombatView {
         return false;
       }
       if (effect.label) {
-        this.project(effect.label, effect.x, 1.6 + effect.age, effect.z);
+        this.project(
+          effect.label,
+          effect.x,
+          0.75 + effect.age * config.vfx.damageTextRise,
+          effect.z,
+        );
+        const pop =
+          1 +
+          Math.sin(
+            Math.min(1, effect.age / config.vfx.damageTextPopTime) * Math.PI,
+          ) *
+            config.vfx.damageTextPop;
+        effect.label.style.transform = `translate(-50%,-100%) scale(${pop})`;
         effect.label.style.opacity = 1 - effect.age / effect.duration;
       }
       if (effect.mesh)
@@ -211,7 +240,7 @@ export class CombatView {
 
   removeActor(id, actor) {
     actor.label.remove();
-    this.scene.remove(actor.ring);
+    this.scene.remove(actor.ring, actor.shield);
     if (!actor.local) {
       this.scene.remove(actor.avatar.group);
       actor.avatar.group.traverse((obj) => {
@@ -224,8 +253,7 @@ export class CombatView {
 
   dispose() {
     for (const [id, actor] of this.actors) this.removeActor(id, actor);
-    for (const mesh of [...this.gems.values(), ...this.projectiles.values()])
-      this.scene.remove(mesh);
+    for (const mesh of this.gems.values()) this.scene.remove(mesh);
     this.effects.forEach((e) => {
       e.label?.remove();
       if (e.mesh) {
@@ -239,7 +267,9 @@ export class CombatView {
     this.mine.children[0].material.dispose();
     this.gemGeometry.dispose();
     this.gemMaterial.dispose();
-    this.bulletGeometry.dispose();
+    this.vfx.dispose();
+    this.shieldGeometry.dispose();
+    this.shieldMaterial.dispose();
     this.ringGeometry.dispose();
     this.teamMaterials.forEach((m) => m.dispose());
     this.layer.remove();

@@ -853,3 +853,65 @@ dialog {
     bottom: 180px;
   }
 }
+.map-picker select {
+  font: inherit;
+  font-size: 11px;
+  letter-spacing: 1px;
+  color: #38503a;
+  background: #f4f7ed;
+  border: 1px solid #d4decb;
+  border-radius: 6px;
+  padding: 7px 24px 7px 9px;
+  cursor: pointer;
+  max-width: 190px;
+}
+.map-picker select:focus-visible {
+  outline: 2px solid #739863;
+  outline-offset: 3px;
+}
+.damage-number {
+  color: #fff;
+  text-shadow:
+    1px 1px 0 #c12b82,
+    -1px -1px 0 #c12b82,
+    0 2px 5px #f65fad;
+  transform-origin: center;
+  will-change: transform, top, opacity;
+}
+@media (max-width: 760px) {
+  .world-title {
+    display: flex;
+    margin: 0;
+    gap: 0;
+  }
+  .world-title > .live-dot,
+  .world-title > .divider,
+  .world-title > span:last-child {
+    display: none;
+  }
+  .map-picker select {
+    width: 140px;
+    font-size: 10px;
+    letter-spacing: 0;
+    padding: 7px;
+  }
+  .brand {
+    font-size: 19px;
+    gap: 5px;
+  }
+  .brand-mark {
+    font-size: 28px;
+  }
+  header {
+    gap: 8px;
+    padding: 0 12px;
+  }
+  .map-picker {
+    display: block;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .damage-number {
+    will-change: auto;
+  }
+}

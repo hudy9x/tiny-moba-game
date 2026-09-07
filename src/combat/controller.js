@@ -5,7 +5,7 @@ import { CombatView } from "./view.js";
 
 export class CombatController {
   constructor({ scene, camera, host, world, player, updateMap, dialog }) {
-    Object.assign(this, { camera, host, player, updateMap, dialog });
+    Object.assign(this, { camera, host, player, updateMap, dialog, world });
     document.querySelector("#gem-goal").textContent =
       config.match.winningGemCount;
     document.querySelector("#help-gem-goal").textContent =
@@ -14,7 +14,7 @@ export class CombatController {
       `${config.match.victoryCountdown} seconds`;
     this.view = new CombatView(scene, camera, host, world, player);
     this.abort = new AbortController();
-    this.aim = { x: config.match.dummy.x, z: config.match.dummy.z };
+    this.aim = { ...world.dummy };
     this.inputClock = 0;
     this.receivedAt = 0;
     this.lastTile = "";
@@ -26,6 +26,7 @@ export class CombatController {
       (status) => {
         document.querySelector("#connection-status").textContent = status;
       },
+      world.map.id,
     );
     const options = { signal: this.abort.signal };
     host.addEventListener("pointermove", (e) => this.setAim(e), options);
@@ -111,7 +112,12 @@ export class CombatController {
     if (point) this.aim = { x: point.x, z: point.z };
   }
 
+  get localPlayerState() {
+    return this.state?.players.find((p) => p.id === this.connection.id);
+  }
+
   move(direction) {
+    if (this.localPlayerState?.status === "dead") return;
     this.connection.send({
       type: "move",
       direction: direction
@@ -121,6 +127,8 @@ export class CombatController {
   }
 
   cast(skill) {
+    if (!this.localPlayerState || this.localPlayerState.status === "dead")
+      return;
     if (skill === "dash") this.pendingDashUntil = performance.now() + 300;
     this.connection.send({ type: "skill", skill, target: this.aim });
   }
@@ -130,6 +138,13 @@ export class CombatController {
   }
 
   receive(state) {
+    if (state.mapId !== this.world.map.id) return;
+    const wasDead = this.localPlayerState?.status === "dead";
+    const nextLocal = state.players.find((p) => p.id === this.connection.id);
+    if (wasDead !== (nextLocal?.status === "dead")) {
+      this.pendingDashUntil = 0;
+      window.dispatchEvent(new Event("combat-input-reset"));
+    }
     this.state = state;
     this.receivedAt = performance.now();
     this.view.sync(state, this.connection.id);
@@ -160,6 +175,7 @@ export class CombatController {
   }
 
   update(dt, time, direction) {
+    if (this.localPlayerState?.status === "dead") direction = null;
     if (this.pointerPosition) this.setAim(this.pointerPosition);
     this.inputClock += dt;
     const next = direction
@@ -176,6 +192,7 @@ export class CombatController {
     const local = state?.players.find((p) => p.id === this.connection.id);
     if (
       local &&
+      local.status !== "dead" &&
       this.pendingDashUntil > performance.now() &&
       state.time >= local.cooldowns.dash
     ) {
@@ -189,7 +206,10 @@ export class CombatController {
         ? Math.max(0, local.cooldowns[button.dataset.skill] - now)
         : 0;
       button.disabled =
-        !local || local.health <= 0 || state.winner !== null || remaining > 0;
+        !local ||
+        local.status === "dead" ||
+        state.winner !== null ||
+        remaining > 0;
       button.querySelector(".cooldown").textContent =
         remaining > 0 ? `${remaining.toFixed(1)}s` : "Ready";
       button.style.setProperty(
@@ -201,8 +221,10 @@ export class CombatController {
     let message = "";
     if (state?.winner !== null && state?.winner !== undefined) {
       message = `${config.teams[state.winner].name} wins! · New round in ${Math.max(0, Math.ceil(state.restartAt - now))}s`;
-    } else if (local?.health <= 0) {
+    } else if (local?.status === "dead") {
       message = `Gems dropped · Respawning in ${Math.max(0, Math.ceil(local.respawnAt - now))}s`;
+    } else if (local && now < local.invulnerableUntil) {
+      message = `Respawn shield · ${Math.ceil(local.invulnerableUntil - now)}s`;
     } else if (state?.countdown) {
       message = `${config.teams[state.countdown.team].name} holds ${config.match.winningGemCount}+ gems · ${Math.max(0, Math.ceil(state.countdown.endsAt - now))}s to victory`;
     }

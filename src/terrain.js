@@ -24,28 +24,20 @@ export function buildTerrain(scene, world) {
     trunks = [],
     leaves = [],
     details = [];
-  const greens = [
-    "#92b94f",
-    "#8eb34b",
-    "#9cbe57",
-    "#a4c263",
-    "#88ae49",
-    "#98b750",
-  ];
+  const palette = world.map.palette;
+  const greens = palette.land;
   for (const t of world.tiles) {
     const { x, z } = t;
     earth.push({
       p: [x, -0.65, z],
       s: [0.994, 0.8, 0.994],
-      c: t.water
-        ? "#739777"
-        : ["#ae9468", "#b9a174", "#aa9168"][Math.floor(noise(x + 3, z) * 3)],
+      c: t.water ? "#739777" : palette.earth[Math.floor(noise(x + 3, z) * 3)],
     });
     if (t.water) {
       water.push({
         p: [x, -0.27, z],
         s: [1, 0.28, 1],
-        c: ["#28b6bc", "#27b3b9", "#30bcc0"][Math.floor(noise(x, z) * 3)],
+        c: palette.water[Math.floor(noise(x, z) * 3)],
       });
       if (noise(x + 6, z) > 0.8)
         details.push({
@@ -58,28 +50,42 @@ export function buildTerrain(scene, world) {
     grass.push({
       p: [x, -0.12, z],
       s: [0.985, 0.27, 0.985],
-      c: t.sand ? "#d9c078" : greens[Math.floor(noise(x, z) * greens.length)],
+      c: t.sand
+        ? palette.sand
+        : greens[Math.floor(noise(x, z) * greens.length)],
     });
-    if (t.tree) {
+    if (t.tree && world.map.obstacle === "rock") {
+      const h = 0.8 + noise(x, z) * 1.3;
+      leaves.push({
+        p: [x, h / 2, z],
+        s: [0.85, h, 0.85],
+        c: palette.foliage[0],
+      });
+      leaves.push({
+        p: [x + 0.1, h + 0.12, z],
+        s: [0.65, 0.25, 0.67],
+        c: palette.foliage[2],
+      });
+    } else if (t.tree) {
       const h = 1.5 + noise(x + 2, z) * 0.9;
       trunks.push({
         p: [x, h * 0.36, z],
         s: [0.19, h * 0.72, 0.19],
         c: "#705333",
       });
-      const base = noise(x, z) > 0.87 ? "#4d842f" : "#619338";
+      const base = noise(x, z) > 0.87 ? palette.foliage[0] : palette.foliage[1];
       for (let j = 0; j < 4; j++) {
         const width = [1.15, 1.4, 1.1, 0.7][j];
         leaves.push({
           p: [x, h * 0.54 + j * 0.31, z],
           s: [width, 0.4, width * 0.88],
-          c: j === 3 ? "#91b94a" : j === 2 ? "#79a43c" : base,
+          c: j === 3 ? palette.foliage[3] : j === 2 ? palette.foliage[2] : base,
         });
       }
       leaves.push({
         p: [x - 0.4, h * 0.72, z + 0.12],
         s: [0.43, 0.45, 0.6],
-        c: "#679838",
+        c: palette.foliage[1],
       });
     } else if (noise(x + 18, z) > 0.91 && !t.sand) {
       for (let i = 0; i < 3; i++)

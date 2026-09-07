@@ -35,3 +35,42 @@ test("spawn has a connected area to explore", () => {
   }
   assert.ok(seen.size > 700);
 });
+
+import { maps } from "./maps/registry.js";
+import { Match } from "../socket-server/match.js";
+import { gameConfig } from "./gameConfig.js";
+for (const map of maps)
+  test(`${map.name}: valid JSON grid and reachable mine, spawns, dummy`, () => {
+    assert.equal(map.rows.length, map.size);
+    map.rows.forEach((row) => {
+      assert.equal(row.length, map.size);
+      assert.match(row, /^[.~T:]+$/);
+    });
+    const w = createWorld(map.id),
+      server = new Match(gameConfig, map.id, () => 0.8);
+    assert.deepEqual(w.tiles, server.world.tiles);
+    const seen = new Set(),
+      queue = [w.mine];
+    for (let i = 0; i < queue.length; i++) {
+      const p = queue[i],
+        k = `${p.x},${p.z}`;
+      if (seen.has(k) || !w.canWalk(p.x, p.z)) continue;
+      seen.add(k);
+      for (const [x, z] of [
+        [1, 0],
+        [-1, 0],
+        [0, 1],
+        [0, -1],
+      ])
+        queue.push({ x: p.x + x, z: p.z + z });
+    }
+    for (const p of [w.mine, ...w.spawns, w.dummy])
+      assert.ok(seen.has(`${p.x},${p.z}`));
+    assert.ok(server.scatterCandidates.length >= 4);
+    const a = server.addPlayer("a"),
+      b = server.addPlayer("b");
+    assert.deepEqual([a.x, a.z], [w.spawns[0].x, w.spawns[0].z]);
+    assert.deepEqual([b.x, b.z], [w.spawns[1].x, w.spawns[1].z]);
+  });
+test("unknown map IDs fail explicitly", () =>
+  assert.throws(() => createWorld("unknown"), /Unknown map/));

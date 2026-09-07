@@ -1,6 +1,7 @@
 /** Small transport boundary. Gameplay never trusts client-provided health or positions. */
 export class GameConnection {
-  constructor(onState, onStatus) {
+  constructor(onState, onStatus, mapId) {
+    this.mapId = mapId;
     this.onState = onState;
     this.onStatus = onStatus;
     this.room = new URLSearchParams(location.search).get("room") || "greenwood";
@@ -16,6 +17,7 @@ export class GameConnection {
         `${location.protocol === "https:" ? "wss:" : "ws:"}//${location.host}/ws`,
     );
     url.searchParams.set("room", this.room);
+    url.searchParams.set("map", this.mapId);
     const socket = (this.socket = new WebSocket(url));
     this.handshakeTimer = setTimeout(() => {
       this.onStatus("Server unavailable · retrying…");

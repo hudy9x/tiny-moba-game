@@ -1,5 +1,6 @@
 import { gameConfig as defaults } from "../src/gameConfig.js";
 import { createWorld } from "../src/world.js";
+import { scatterTiles, spawnGemBatch } from "./gems.js";
 
 const distance = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
 const validPoint = (p) =>
@@ -16,9 +17,18 @@ const cardinal = (p) =>
 
 /** Pure simulation: no sockets, renderer, timers, or wall-clock dependencies. */
 export class Match {
-  constructor(config = defaults) {
+  constructor(
+    config = defaults,
+    mapId = config.maps.defaultId,
+    random = Math.random,
+  ) {
     this.config = config;
-    this.world = createWorld();
+    this.world = createWorld(mapId);
+    this.random = random;
+    this.scatterCandidates = scatterTiles(
+      this.world,
+      config.match.gemScatterRadius,
+    );
     this.players = new Map();
     this.gems = [];
     this.projectiles = [];
@@ -47,8 +57,8 @@ export class Match {
 
   makePlayer(id, team, bot = false) {
     const c = this.config;
-    const spawn = bot ? c.match.dummy : c.match.spawns[team];
-    const maxHealth = bot ? c.match.dummy.health : c.player.baseHealth;
+    const spawn = bot ? this.world.dummy : this.world.spawns[team];
+    const maxHealth = bot ? c.match.dummyHealth : c.player.baseHealth;
     return {
       id,
       team,
@@ -56,6 +66,8 @@ export class Match {
       x: spawn.x,
       z: spawn.z,
       tile: { x: spawn.x, z: spawn.z },
+      status: "alive",
+      invulnerableUntil: 0,
       health: maxHealth,
       maxHealth,
       gems: 0,
@@ -99,7 +111,7 @@ export class Match {
       p.skin = command.skin;
       return;
     }
-    if (p.health <= 0 || this.winner !== null) return;
+    if (p.status === "dead" || this.winner !== null) return;
     if (command.type === "move" && cardinal(command.direction)) {
       p.input = { ...command.direction };
       p.inputAt = this.time;
@@ -142,6 +154,13 @@ export class Match {
         z: (target.z - p.z) / length,
       };
       if (skill === "basic") {
+        this.events.push({
+          type: "shot",
+          x: p.x,
+          z: p.z,
+          dx: direction.x,
+          dz: direction.z,
+        });
         this.projectiles.push({
           id: ++this.sequence,
           owner: p.id,
@@ -188,18 +207,22 @@ export class Match {
     p.tile = { ...end };
   }
 
-  damage(victim, attacker, amount) {
+  damage(victim, attacker, amount, point = victim) {
+    if (victim.status === "dead" || this.time < victim.invulnerableUntil)
+      return;
+
     const actual = Math.min(victim.health, amount);
     victim.health -= actual;
     victim.lastCombat = attacker.lastCombat = this.time;
     this.events.push({
       type: "damage",
-      x: victim.x,
-      z: victim.z,
+      x: point.x,
+      z: point.z,
       amount: actual,
       id: victim.id,
     });
     if (victim.health <= 0) {
+      victim.status = "dead";
       this.dropGems(victim);
       victim.motion = null;
       victim.input = { x: 0, z: 0 };
@@ -211,8 +234,9 @@ export class Match {
     if (p.gems)
       this.gems.push({
         id: ++this.sequence,
-        x: p.x,
-        z: p.z,
+        x: Math.round(p.x),
+        z: Math.round(p.z),
+        expiresAt: this.time + this.config.match.gemDespawnTime,
         value: p.gems,
         mine: false,
       });
@@ -221,16 +245,21 @@ export class Match {
 
   step(dt) {
     this.time += dt;
+    this.gems = this.gems.filter((g) => this.time < g.expiresAt);
     if (this.winner !== null) {
       if (this.time >= this.restartAt) this.restart();
       return;
     }
     const c = this.config;
     for (const p of this.players.values()) {
-      if (p.health <= 0) {
+      if (p.status === "dead") {
         if (this.time >= p.respawnAt) {
           const fresh = this.makePlayer(p.id, p.team, p.bot);
-          Object.assign(p, fresh, { skin: p.skin, lastCombat: this.time });
+          Object.assign(p, fresh, {
+            skin: p.skin,
+            lastCombat: this.time,
+            invulnerableUntil: this.time + c.player.respawnInvulnerability,
+          });
         }
         continue;
       }
@@ -259,14 +288,7 @@ export class Match {
     this.updateProjectiles(dt);
     if (this.time >= this.nextGem) {
       this.nextGem = this.time + c.match.gemSpawnInterval;
-      if (this.gems.filter((g) => g.mine).length < c.match.gemCap) {
-        this.gems.push({
-          id: ++this.sequence,
-          ...c.match.mine,
-          value: 1,
-          mine: true,
-        });
-      }
+      spawnGemBatch(this);
     }
     this.gems = this.gems.filter((gem) => {
       const eligible = [...this.players.values()]
@@ -295,7 +317,15 @@ export class Match {
         const tile = this.world.lookup.get(
           `${Math.round(b.x)},${Math.round(b.z)}`,
         );
-        if (!tile || tile.tree) return false;
+        if (!tile || tile.tree) {
+          this.events.push({
+            type: "impact",
+            x: b.x,
+            z: b.z,
+            kind: "obstacle",
+          });
+          return false;
+        }
         for (const p of this.players.values()) {
           if (
             p.team !== b.team &&
@@ -303,7 +333,13 @@ export class Match {
             distance(b, p) <= this.config.player.hitRadius
           ) {
             const owner = this.players.get(b.owner);
-            if (owner) this.damage(p, owner, c.damage);
+            this.events.push({
+              type: "impact",
+              x: b.x,
+              z: b.z,
+              kind: this.time < p.invulnerableUntil ? "shield" : "entity",
+            });
+            if (owner) this.damage(p, owner, c.damage, b);
             return false;
           }
         }
@@ -357,6 +393,7 @@ export class Match {
 
   snapshot() {
     return {
+      mapId: this.world.map.id,
       time: this.time,
       totals: this.totals(),
       countdown: this.countdown,
@@ -368,6 +405,8 @@ export class Match {
         bot: p.bot,
         x: p.x,
         z: p.z,
+        status: p.status,
+        invulnerableUntil: p.invulnerableUntil,
         health: p.health,
         maxHealth: p.maxHealth,
         gems: p.gems,

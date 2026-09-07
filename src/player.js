@@ -1,6 +1,5 @@
 import * as THREE from "three";
 import { RoundedBoxGeometry } from "three/addons/geometries/RoundedBoxGeometry.js";
-import { START } from "./world.js";
 import { gameConfig } from "./gameConfig.js";
 export class Player {
   constructor(scene, world, onStep) {
@@ -8,8 +7,12 @@ export class Player {
     this.onStep = onStep;
     this.group = new THREE.Group();
     scene.add(this.group);
-    this.tile = { ...START };
-    this.group.position.set(START.x, 0.05, START.z);
+    this.tile = { ...this.world.spawns[0] };
+    this.group.position.set(
+      this.world.spawns[0].x,
+      0.05,
+      this.world.spawns[0].z,
+    );
     this.progress = 1;
     this.skin = "pip";
     this.build();
@@ -116,9 +119,13 @@ export class Player {
     }
   }
   reset() {
-    this.tile = { ...START };
+    this.tile = { ...this.world.spawns[0] };
     this.progress = 1;
-    this.group.position.set(START.x, 0.05, START.z);
+    this.group.position.set(
+      this.world.spawns[0].x,
+      0.05,
+      this.world.spawns[0].z,
+    );
     this.onStep(this.tile);
   }
 }

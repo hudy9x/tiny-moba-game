@@ -1,43 +1,44 @@
-export const SIZE = 44;
-export const START = { x: 23, z: 24 };
+import { getMap } from "./maps/registry.js";
+// Compatibility exports for local-only callers. Multiplayer uses world.size/spawns.
+export const SIZE = getMap().size;
+export const START = getMap().spawns[0];
 export function noise(x, z) {
   const n = Math.sin(x * 127.1 + z * 311.7) * 43758.5453;
   return n - Math.floor(n);
 }
-export function isWater(x, z) {
-  const river = 15 + Math.floor(Math.sin(z * 0.19) * 4);
-  const cross = 32 + Math.floor(Math.sin(x * 0.17) * 3);
-  return (
-    (Math.abs(x - river) < 2 && !(z >= 22 && z <= 24)) ||
-    (Math.abs(z - cross) < 1.6 && !(x >= 27 && x <= 29))
-  );
+export function isWater(x, z, mapId) {
+  return getMap(mapId).rows[z]?.[x] === "~";
 }
-export function createWorld() {
-  const tiles = [];
-  const lookup = new Map();
-  for (let z = 0; z < SIZE; z++)
-    for (let x = 0; x < SIZE; x++) {
-      const water = isWater(x, z);
-      const clearing = Math.hypot(x - START.x, z - START.z) < 4.3;
-      const path = Math.abs(z - 23) < 2 || Math.abs(x - 27) < 2;
-      const tree = !water && !clearing && !path && noise(x, z) > 0.72;
+
+/** JSON legend: . grass, : sand/path, ~ water, T solid tree/rock. */
+export function createWorld(mapId) {
+  const map = getMap(mapId);
+  const tiles = [],
+    lookup = new Map();
+  for (let z = 0; z < map.size; z++)
+    for (let x = 0; x < map.size; x++) {
+      const value = map.rows[z][x];
       const tile = {
         x,
         z,
-        water,
-        tree,
-        sand:
-          !water && ((path && noise(x + 8, z) > 0.48) || noise(x, z) > 0.965),
+        water: value === "~",
+        tree: value === "T",
+        sand: value === ":",
       };
       tiles.push(tile);
       lookup.set(`${x},${z}`, tile);
     }
   return {
+    map,
+    size: map.size,
+    mine: map.mine,
+    spawns: map.spawns,
+    dummy: map.dummy,
     tiles,
     lookup,
     canWalk(x, z) {
-      const t = lookup.get(`${x},${z}`);
-      return !!t && !t.water && !t.tree;
+      const tile = lookup.get(`${x},${z}`);
+      return !!tile && !tile.water && !tile.tree;
     },
   };
 }

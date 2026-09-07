@@ -15,7 +15,13 @@
           ></a
         >
         <div class="world-title">
-          <span class="live-dot"></span> THE GREENWOOD
+          <span class="live-dot"></span>
+          <label class="map-picker"
+            ><select
+              id="map-select"
+              aria-label="Select map (reloads game)"
+            ></select
+          ></label>
           <span class="divider">/</span> <span>GEM GRAB</span>
         </div>
         <button id="help" class="round" aria-label="Open controls">?</button>
@@ -31,7 +37,9 @@
         <p>Gather gems. Watch your back. Hold on for the win.</p>
       </section>
       <aside class="map-panel">
-        <div class="panel-heading">THE GREENWOOD <span>01</span></div>
+        <div class="panel-heading">
+          <span id="map-title">THE GREENWOOD</span> <span>01</span>
+        </div>
         <canvas
           id="minimap"
           width="160"
@@ -40,7 +48,7 @@
         ></canvas>
         <div class="map-caption">
           <span class="live-dot"></span> <span id="coords">00, 00</span
-          ><span>Meadow</span>
+          ><span id="biome-name">Meadow</span>
         </div>
       </aside>
       <div class="location">
