@@ -26,7 +26,7 @@ export const gameConfig = {
     respawnInvulnerability: 2,
     moveSpeed: 5.25,
     regenerationDelay: 3,
-    regenerationPerSecond: 12,
+    regenerationPerSecond: 0,
     hitRadius: 0.38,
     collisionStep: 0.1,
     hpSmoothing: 12,
@@ -47,6 +47,7 @@ export const gameConfig = {
     },
   },
   vfx: {
+    dashSmoke: { maxPuffs: 96, lifetime: 0.65, interval: 0.035, size: 0.28, rise: 0.5, color: "#edf0ea" },
     muzzleLifetime: 0.12,
     muzzleLength: 0.4,
     damageTextPopTime: 0.2,

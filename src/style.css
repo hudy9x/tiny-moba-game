@@ -968,3 +968,5 @@ dialog {
 .actor-heading .hp-number {font-size:8px;color:#243d2c;text-shadow:none;flex-shrink:0}
 .actor-label>progress {width:100%;height:5px;margin-top:3px}
 @media(max-width:760px){.arena-selector{bottom:145px;padding:8px}.arena-cards{gap:5px}.arena-cards canvas{height:55px}.arena-cards strong{font-size:8px}.actor-label{width:120px}}
+#world canvas {cursor:url('/cursors/aim.svg') 3 2, crosshair}
+#world.enemy-hover canvas {cursor:url('/cursors/enemy.svg') 2 1, crosshair}

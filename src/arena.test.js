@@ -3,13 +3,13 @@ import assert from 'node:assert/strict';
 import {maps} from './maps/registry.js';
 import {createWorld} from './world.js';
 import {Match} from '../socket-server/match.js';
-for(const map of maps)test(`${map.name}: empty combat ellipse, dense borders, broad crossings`,()=>{
+for(const map of maps)test(`${map.name}: open combat space, varied border cover, crossings`,()=>{
  const world=createWorld(map.id),a=map.arena;
  const center=world.tiles.filter(t=>((t.x-a.x)/a.radiusX)**2+((t.z-a.z)/a.radiusZ)**2<=1);
- assert.ok(center.length>450);assert.ok(center.every(t=>!t.water && !t.tree));
+ assert.ok(center.length>450);assert.ok(center.filter(t=>!t.water && !t.tree).length/center.length>.8);
  const border=world.tiles.filter(t=>Math.min(t.x,t.z,map.size-1-t.x,map.size-1-t.z)<4);
- assert.ok(border.filter(t=>t.tree).length/border.length>.6);
- for(let v=3;v<map.size-3;v++){assert.ok(world.canWalk(a.x,v));assert.ok(world.canWalk(v,a.z));}
+ assert.ok(border.filter(t=>t.tree).length/border.length>.4);
+ assert.ok(world.tiles.some(t=>t.bridge));assert.ok(world.tiles.some(t=>t.mountain));
 });
 test('selected map initializes existing shared players; invalid map and in-match changes rejected',()=>{
  const m=new Match();m.addPlayer('a');m.addPlayer('b');

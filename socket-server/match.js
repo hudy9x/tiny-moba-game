@@ -288,12 +288,6 @@ export class Match {
         }
         continue;
       }
-      if (this.time - p.lastCombat >= c.player.regenerationDelay) {
-        p.health = Math.min(
-          p.maxHealth,
-          p.health + c.player.regenerationPerSecond * dt,
-        );
-      }
       if (this.time - p.inputAt > c.network.inputTimeout)
         p.input = { x: 0, z: 0 };
       if (p.motion?.dash) {
@@ -369,8 +363,8 @@ export class Match {
 
   finish(reason) {
     this.phase = "ended";
-    this.mvp = selectMvp(this.players.values(),this.config.match.mvp);
-    this.celebrationEndsAt = this.time + this.config.match.mvp.celebrationDuration;
+    this.mvp = reason === "timeout" ? selectMvp(this.players.values(),this.config.match.mvp) : null;
+    this.celebrationEndsAt = this.mvp ? this.time + this.config.match.mvp.celebrationDuration : null;
     this.endReason = reason;
     this.remaining = Math.max(0,this.endsAt-this.time);
     const ranking = [...this.players.values()].sort((a,b)=>b.kills-a.kills || a.deaths-b.deaths || a.id.localeCompare(b.id));

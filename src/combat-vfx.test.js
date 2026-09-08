@@ -33,3 +33,12 @@ test("impact sparks remain bounded and all effects expire without scene leaks", 
   vfx.dispose();
   assert.equal(scene.children.length, 0);
 });
+
+test('dash smoke is bounded, fades completely, and is disposed',()=>{
+ const scene=new THREE.Scene();const vfx=new CombatVFX(scene);
+ for(let i=0;i<200;i++)vfx.smoke({x:i/100,z:0});
+ assert.equal(vfx.smokePuffs.length,vfx.config.dashSmoke.maxPuffs);
+ vfx.update(vfx.config.dashSmoke.lifetime+0.01);
+ assert.ok(vfx.smokePuffs.every(p=>!p.active && !p.mesh.visible));
+ vfx.dispose();assert.equal(scene.children.length,0);
+});

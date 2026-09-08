@@ -44,7 +44,7 @@ for (const map of maps)
     assert.equal(map.rows.length, map.size);
     map.rows.forEach((row) => {
       assert.equal(row.length, map.size);
-      assert.match(row, /^[.~T:]+$/);
+      assert.match(row, /^[.~T:BMH]+$/);
     });
     const w = createWorld(map.id),
       server = new Match(gameConfig, map.id, () => 0.8);

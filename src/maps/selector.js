@@ -18,11 +18,11 @@ export class ArenaSelector {
     const title=document.createElement('p');title.textContent='CHOOSE A SEASON · CHANGES FOR EVERYONE';this.panel.append(title);
     const cards=document.createElement('div');cards.className='arena-cards';this.panel.append(cards);
     for(const map of maps) {
-      const button=document.createElement('button');button.type='button';button.dataset.map=map.id;
+      const button=document.createElement('button');button.type='button';button.dataset.map=map.id;button.title=map.layoutDescription || map.name;
       const canvas=document.createElement('canvas');canvas.width=canvas.height=132;canvas.setAttribute('aria-label',`${map.name} minimap preview`);
       const ctx=canvas.getContext('2d'),s=132/map.size;
       map.rows.forEach((row,z)=>[...row].forEach((tile,x)=>{
-        ctx.fillStyle=tile==='T'?map.palette.foliage[0]:tile==='~'?map.palette.water[0]:tile===':'?map.palette.sand:map.palette.land[2];ctx.fillRect(x*s,z*s,s+.3,s+.3);
+        ctx.fillStyle=tile==='H'?'#ae624a':tile==='M'?map.palette.earth[0]:tile==='B'?'#c5a06a':tile==='T'?map.palette.foliage[0]:tile==='~'?map.palette.water[0]:tile===':'?map.palette.sand:map.palette.land[2];ctx.fillRect(x*s,z*s,s+.3,s+.3);
       }));
       const name=document.createElement('strong');name.textContent=map.name;
       button.append(canvas,name);button.onclick=()=>this.onSelect(map.id);cards.append(button);

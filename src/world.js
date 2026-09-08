@@ -22,7 +22,11 @@ export function createWorld(mapId) {
         x,
         z,
         water: value === "~",
-        tree: value === "T",
+        tree: ["T","H","M"].includes(value),
+        house: value === "H",
+        mountain: value === "M",
+        bridge: value === "B",
+        elevation: map.mountainHeights?.[`${x},${z}`] || 0,
         sand: value === ":",
       };
       tiles.push(tile);

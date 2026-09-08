@@ -35,6 +35,7 @@ export class CombatController {
     window.addEventListener('keydown',e=>{
       if(e.key === 'Escape' && !e.repeat && !dialog.open) {e.preventDefault();toggleLeaderboard();}
     },options);
+    host.addEventListener("pointerleave",()=>{this.pointerPosition=null;host.classList.remove("enemy-hover");},options);
     host.addEventListener("pointermove", (e) => this.setAim(e), options);
     host.addEventListener(
       "pointerdown",
@@ -108,8 +109,9 @@ export class CombatController {
       actors.map((a) => a.avatar.group),
       true,
     )[0];
+    this.host.classList.toggle('enemy-hover',!!hit);
     if (hit) {
-      const actor = actors.find((a) => a.avatar.group === hit.object.parent);
+      const actor = actors.find(a=>{let node=hit.object;while(node){if(node===a.avatar.group)return true;node=node.parent;}return false;});
       if (actor) {
         this.aim = { x: actor.data.x, z: actor.data.z };
         return;

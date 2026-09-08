@@ -47,6 +47,12 @@ export function buildTerrain(scene, world) {
         });
       continue;
     }
+    if(t.bridge) {
+      water.push({p:[x,-.27,z],s:[1,.28,1],c:palette.water[0]});
+      grass.push({p:[x,-.05,z],s:[.98,.18,.98],c:'#b38c59'});
+      for(let j=0;j<4;j++)details.push({p:[x, .047,z-.36+j*.24],s:[.94,.015,.2],c:j%2?'#d3b37e':'#c5a06a'});
+      continue;
+    }
     grass.push({
       p: [x, -0.12, z],
       s: [0.985, 0.27, 0.985],
@@ -54,7 +60,12 @@ export function buildTerrain(scene, world) {
         ? palette.sand
         : greens[Math.floor(noise(x, z) * greens.length)],
     });
-    if (t.tree && world.map.obstacle === "rock") {
+    if(t.house) continue;
+    if(t.mountain) {
+      const h=t.elevation;
+      leaves.push({p:[x,h/2,z],s:[.995,h,.995],c:palette.earth[0]});
+      leaves.push({p:[x,h+.06,z],s:[.99,.12,.99],c:world.map.season==='Winter'?palette.land[1]:palette.foliage[2]});
+    } else if (t.tree && world.map.obstacle === "rock") {
       const h = 0.8 + noise(x, z) * 1.3;
       leaves.push({
         p: [x, h / 2, z],
@@ -112,6 +123,14 @@ export function buildTerrain(scene, world) {
           c: palette.detail || "#759c3d",
         });
     }
+  }
+  for(const house of world.map.houses || []) {
+    const {x,z}=house;
+    leaves.push({p:[x,.8,z],s:[2.85,1.6,2.85],c:world.map.season==='Winter'?'#c0b9aa':'#e5c590'});
+    for(let tier=0;tier<4;tier++)leaves.push({p:[x,1.7+tier*.23,z],s:[3.25-tier*.65,.25,3.25],c:world.map.season==='Winter'?'#edf5f7':'#a6523b'});
+    details.push({p:[x,.55,z+1.435],s:[.65,1.1,.025],c:'#674932'});
+    for(const side of [-.9,.9])details.push({p:[x+side,.95,z+1.44],s:[.45,.5,.025],c:'#f6d68b'});
+    leaves.push({p:[x+.8,2.25,z-.5],s:[.4,1.2,.4],c:'#826957'});
   }
   batch(earth, new THREE.MeshLambertMaterial());
   batch(grass, new THREE.MeshLambertMaterial());

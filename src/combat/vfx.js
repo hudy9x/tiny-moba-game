@@ -8,6 +8,8 @@ export class CombatVFX {
     this.config = config;
     this.beams = new Map();
     this.flashes = [];
+    this.smokePuffs = [];
+    this.smokeGeometry = new THREE.IcosahedronGeometry(1,1);
     this.freeBeams = [];
     this.beamGeometry = new THREE.ConeGeometry(0.5, 1, 4);
     this.beamGeometry.rotateX(Math.PI / 2);
@@ -45,6 +47,20 @@ export class CombatVFX {
     this.transform = new THREE.Object3D();
     this.up = new THREE.Vector3(0, 1, 0);
     this.direction = new THREE.Vector3();
+  }
+
+  smoke(point) {
+    const c=this.config.dashSmoke;
+    let puff=this.smokePuffs.find(p=>!p.active);
+    if(!puff && this.smokePuffs.length<c.maxPuffs) {
+      const mesh=new THREE.Mesh(this.smokeGeometry,new THREE.MeshBasicMaterial({color:c.color,transparent:true,opacity:0,depthWrite:false}));
+      this.scene.add(mesh);puff={mesh,active:false,age:0};this.smokePuffs.push(puff);
+    }
+    if(!puff) return;
+    puff.active=true;puff.age=0;puff.mesh.visible=true;
+    puff.mesh.position.set(point.x+(Math.random()-.5)*.2,.2,point.z+(Math.random()-.5)*.2);
+    puff.mesh.rotation.set(Math.random()*3,Math.random()*3,0);
+    puff.mesh.scale.setScalar(c.size);puff.mesh.material.opacity=.55;
   }
 
   createBeam() {
@@ -124,6 +140,14 @@ export class CombatVFX {
   }
 
   update(dt) {
+    for(const puff of this.smokePuffs) {
+      if(!puff.active)continue;
+      puff.age+=dt;const life=puff.age/this.config.dashSmoke.lifetime;
+      if(life>=1){puff.active=false;puff.mesh.visible=false;continue;}
+      puff.mesh.position.y+=dt*this.config.dashSmoke.rise;
+      puff.mesh.scale.setScalar(this.config.dashSmoke.size*(1+life*2));
+      puff.mesh.material.opacity=.55*(1-life);
+    }
     let count = 0;
     for (const p of this.particles) {
       if (!p.active) continue;
@@ -168,6 +192,8 @@ export class CombatVFX {
   dispose() {
     for (const beam of this.beams.values()) this.scene.remove(beam);
     for (const f of this.flashes) this.scene.remove(f.beam);
+    for(const p of this.smokePuffs){this.scene.remove(p.mesh);p.mesh.material.dispose();}
+    this.smokePuffs=[];this.smokeGeometry.dispose();
     this.scene.remove(this.sparks);
     this.beamGeometry.dispose();
     this.coreMaterial.dispose();

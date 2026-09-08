@@ -11,7 +11,7 @@ test('MVP rewards kills and damage with a death penalty and stable ties',()=>{
 test('MVP captures actual damage, survives disconnect, expires after 3 seconds and resets next round',()=>{
  const m=new Match(),a=m.addPlayer('a'),b=m.addPlayer('b');m.command('a',{type:'start'});
  b.health=10;m.damage(b,a,100);assert.equal(a.damageDealt,10);
- m.command('b',{type:'end'});const state=m.snapshot();assert.equal(state.mvp.id,'a');assert.equal(state.mvp.damageDealt,10);assert.equal(state.celebrationEndsAt-state.time,3);
+ m.time=m.endsAt;m.updateVictory();const state=m.snapshot();assert.equal(state.mvp.id,'a');assert.equal(state.mvp.damageDealt,10);assert.equal(state.celebrationEndsAt-state.time,3);
  m.removePlayer('a');assert.equal(m.snapshot().mvp.id,'a');m.step(3);assert.ok(m.time>=m.celebrationEndsAt);
  m.command('b',{type:'start'});assert.equal(m.snapshot().mvp,null);assert.equal(b.damageDealt,0);
 });
@@ -20,3 +20,5 @@ test('damage dealt persists through respawn and damage is rejected outside activ
  m.command('a',{type:'start'});m.damage(b,a,20);m.damage(a,b,100);m.step(5);assert.equal(a.damageDealt,20);
  m.command('b',{type:'end'});m.damage(b,a,20);assert.equal(a.damageDealt,20);
 });
+
+test('manual end never displays MVP or praise',()=>{const m=new Match();m.addPlayer('a');m.command('a',{type:'start'});m.command('a',{type:'end'});assert.equal(m.snapshot().mvp,null);assert.equal(m.snapshot().celebrationEndsAt,null);});

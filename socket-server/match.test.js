@@ -38,8 +38,8 @@ test('death counts once, blocks controls, retains profile and scores through res
  assert.equal(a.health,100);assert.equal(a.status,'alive');assert.equal(a.kills,3);assert.equal(a.deaths,1);assert.equal(a.name,'Alice');assert.equal(a.costume.hat,'crown');
  m.damage(a,b,100);assert.equal(a.health,100);advance(m,2.01);m.damage(a,b,22);assert.equal(a.health,78);
 });
-test('regeneration waits three seconds for both combat participants',()=>{
- const {m,a,b}=pair();a.health=50;b.health=50;m.damage(b,a,10);advance(m,2.99);assert.equal(a.health,50);assert.equal(b.health,40);advance(m,.2);assert.ok(a.health>50);assert.ok(b.health>40);
+test('health never regenerates outside combat',()=>{
+ const {m,a,b}=pair();a.health=50;b.health=50;m.damage(b,a,10);advance(m,2.99);assert.equal(a.health,50);assert.equal(b.health,40);advance(m,.2);assert.equal(a.health,50);assert.equal(b.health,40);advance(m,15);assert.equal(a.health,50);assert.equal(b.health,40);
 });
 test('five-minute deadline stops attacks, kills decide winner, round restart resets scores',()=>{
  const {m,a,b}=pair();a.kills=4;b.kills=2;a.name='Alice';a.gems=99;advance(m,5);assert.equal(m.gems.length,0);assert.equal(m.winner,null);

@@ -139,7 +139,7 @@ export class CombatView {
         this.vfx.shot(event);
         gameAudio.play("basic", event, listener);
       }
-      if (event.type === "dash") gameAudio.play("dash", event, listener);
+      if (event.type === "dash") {gameAudio.play("dash", event, listener);this.vfx.smoke(event);}
       if (event.type === "impact") this.vfx.impact(event);
       if (event.type === "damage") {
         if(event.id === localId) gameAudio.play("hurt",event,listener);
@@ -194,6 +194,8 @@ export class CombatView {
       actor.displayHealth += (data.health-actor.displayHealth)*(1-Math.exp(-dt*config.player.hpSmoothing));
       label.querySelector("progress").value=actor.displayHealth;
       const position = avatar.group.position;
+      actor.smokeClock=(actor.smokeClock || 0)+dt;
+      if(data.dashing && actor.smokeClock>=config.vfx.dashSmoke.interval){this.vfx.smoke(position);actor.smokeClock=0;}
       const moving =
         Math.hypot(data.x - position.x, data.z - position.z) > 0.02;
       position.lerp(
